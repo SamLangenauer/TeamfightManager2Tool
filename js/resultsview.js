@@ -41,12 +41,12 @@ export function resultsView(m) {
     { key: 'us', label: 'Your picks', html: (r) => chips(m, r.picks.us), value: () => 0 },
     { key: 'them', label: 'Their picks', html: (r) => chips(m, r.picks.them), value: () => 0 },
     { key: 'predicted', label: 'Predicted', cls: 'num', value: (r) => r.predicted, html: (r) => pct(r.predicted) },
-    { key: 'won', label: 'Result', value: (r) => (r.won ? 1 : 0), html: (r) => (r.won ? '<strong>Won</strong>' : 'Lost') },
+    { key: 'won', label: 'Result', value: (r) => (r.won == null ? -1 : r.won ? 1 : 0), html: (r) => (r.won == null ? '<span class="muted">Waiting for a newer save</span>' : (r.won ? '<strong>Won</strong>' : 'Lost') + (r.inSave ? ` <span class="muted small" title="Found in your save from ${esc(r.inSave.saveDate)}">${r.inSave.kills[0]}–${r.inSave.kills[1]}${r.correctedFromSave ? ', corrected from save' : ''}</span>` : '')) },
     { key: 'x', label: '', value: () => 0, html: (r) => `<button class="ghost small" data-action="result-delete" data-id="${esc(r.id)}">Remove</button>` },
   ], { empty: 'No results yet. Finish a draft on the Draft page, then record whether you won.' });
 
   return `
-  <h1>Results</h1>
+  <h1>Match history</h1>
   <p class="muted">The win chance on the Draft page comes from a model trained on every pro game in this save. Each result you record is added to its training, counted as ${YOUR_WEIGHT} pro games, and the model is retrained right away. What it learns changes how much each part of a suggestion counts.</p>
   <div class="grid two">
     <div class="card">
@@ -81,7 +81,7 @@ export function resultsView(m) {
       <button class="ghost small" data-action="result-import">Import results</button>
       <input type="file" id="result-file" accept=".json,application/json" hidden>
     </div>
-    <p class="muted small">Results are kept in this browser only. Export them to back them up or move them to another computer.</p>
+    <p class="muted small">Every draft you record is kept here, in this browser, whatever save you load. When a newer save contains one of these games, its result is filled in or checked from the save. Export your history to back it up or move it to another computer.</p>
     ${rows}
   </div>`;
 }

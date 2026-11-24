@@ -36,7 +36,7 @@ export class Learner {
     for (const g of m.games) {
       const lineup = g.players.map((side) => { const l = [null, null, null, null, null]; side.forEach((p) => { if (p && p.slot < 5) l[p.slot] = p.aid; }); return l; });
       const x = this.features({ picks: [g.picks[0], g.picks[1]], lineup, sideA: true, exclude: g });
-      this.pro.push({ x, y: g.winner === 0 ? 1 : 0 });
+      this.pro.push({ x, y: g.winner === 0 ? 1 : 0, g });
     }
     // standardise on pro games
     const k = FEATURES.length;
@@ -164,14 +164,17 @@ export class Learner {
   }
 
   retrain() {
+    const matched = syncWithSave(this.m);
     this.records = results.all();
     this.mine = [];
     for (const r of this.records) {
       if (r.won == null) continue;
       try { this.mine.push({ x: this.recordFeatures(r), y: r.won ? 1 : 0, wt: YOUR_WEIGHT, r }); } catch (e) { console.warn('Skipping a recorded game', e); }
     }
-    this.w = this.fit([...this.pro, ...this.mine]);
-    this.wPro = this.mine.length ? this.fit(this.pro) : this.w;
+    // your games that are also in the save are counted once, as yours
+    const pro = matched.size ? this.pro.filter((r) => !matched.has(r.g)) : this.pro;
+    this.w = this.fit([...pro, ...this.mine]);
+    this.wPro = this.mine.length ? this.fit(pro) : this.w;
     // multipliers for the suggestion parts
     this.mult = {};
     FEATURES.forEach(({ key }, j) => {
@@ -198,6 +201,33 @@ export class Learner {
   weights() {
     return FEATURES.map((f, j) => ({ ...f, w: this.w[j], wPro: this.wPro[j], mult: this.mult[f.key] }));
   }
+}
+
+// Your recorded drafts are kept in the browser, apart from any save, so they
+// survive loading a newer save. Each time a save is loaded, look for those
+// games in it: fill in results you left for later, and correct any that differ.
+const sameSet = (a, b) => a.length === b.length && a.every((x) => b.includes(x));
+export function syncWithSave(m) {
+  const list = results.all();
+  const used = new Set(), matched = new Set();
+  let changed = false;
+  for (const r of list) {
+    if (!r.picks || r.picks.us.length < 5 || r.picks.them.length < 5) continue;
+    const g = m.games.find((x) => !used.has(x) && [0, 1].some((s) => x.teams[s] === r.us && x.teams[1 - s] === r.opp
+      && sameSet(x.picks[s], r.picks.us) && sameSet(x.picks[1 - s], r.picks.them)));
+    if (!g) continue;
+    used.add(g); matched.add(g);
+    const s = g.teams[0] === r.us && sameSet(g.picks[0], r.picks.us) ? 0 : 1;
+    const won = g.winner === s;
+    const before = JSON.stringify([r.won, r.inSave]);
+    if (r.won == null) r.filledFromSave = true;
+    else if (r.won !== won) r.correctedFromSave = true;
+    r.won = won;
+    r.inSave = { saveDate: m.db.date, kills: [g.sum[s].kills, g.sum[1 - s].kills] };
+    if (JSON.stringify([r.won, r.inSave]) !== before) changed = true;
+  }
+  if (changed) results.save(list);
+  return matched;
 }
 
 let cached = null;
