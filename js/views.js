@@ -1,3 +1,4 @@
+import { SLOTS, SLOT_LABEL, describe, actionFacts } from './kits.js';
 import { ROLES, STAT_LABELS, HIDDEN_LABELS, fmtMoney, pct, wr } from './model.js';
 import { esc, table, bar, statTone, num, link, select, setSort } from './ui.js';
 import { local } from './store.js';
@@ -47,6 +48,7 @@ export function loadScreen(app) {
     <div id="load-status" class="status"></div>
     ${last ? `<div class="card"><div>Last save: <strong>${esc(last.team || 'Unknown team')}</strong>, in-game date ${esc(last.date)}</div>
       <div class="row gap"><button data-action="load-last">Open it again</button><button class="ghost" data-action="forget">Forget it</button></div></div>` : ''}
+    ${gameFilesCard(app, 'Optional: point the app at your game files once so it can read every champion\'s abilities.')}
     <div class="card muted small">
       Tip: in Windows, paste <code>%APPDATA%\\TeamSamoyed\\TeamfightManager2\\data</code> into the file picker's address bar to jump to the folder.
       The newest file is the latest save; <code>.bak</code> is the one before it.
@@ -355,8 +357,35 @@ export function meta(m) {
   ], { limit: 100 })}`;
 }
 
+// ---------- game files ----------
+// Champion kits are read from the user's own install, never shipped with the site.
+export function gameFilesCard(app, why = '') {
+  const g = app.game;
+  const where = `<span class="muted small">In Steam, right-click Teamfight Manager 2, choose Manage, then Browse local files. The file is <code>bundle.game_data</code> in that folder. Only the champion data is read from it, in your browser, and kept here so you pick it once per game update.</span>`;
+  return `<div class="card"><h2>Champion kits</h2>
+    ${g ? `<p class="small">Read from your game files on ${new Date(g.readAt).toLocaleDateString()}: ${Object.keys(g.kits).length} champions.</p>
+      <div class="row gap"><button class="ghost small" data-action="pick-game">Read them again after a game update</button></div>`
+    : `<p class="small">${why || 'Ability details come from your own copy of the game.'}</p>
+      <div class="drop" data-action="pick-game"><strong>Choose bundle.game_data from the game folder</strong>${where}</div>`}
+    <div id="game-status" class="status">${esc(app.gameStatus || '')}</div></div>`;
+}
+
 // ---------- champion ----------
-export function champ(m, r) {
+function kitCard(m, c, app) {
+  const k = m.kits?.[c]; const ch = m.champs[c];
+  if (!k) return `<div class="grid two"><div class="card"><h2>Abilities</h2>${ch.skills.map((n, i) => `<div class="kv"><span>${['Ability 1', 'Ability 2', 'Ultimate'][i]}</span><span>${esc(n)}</span></div>`).join('')}</div>
+    ${gameFilesCard(app, 'Point the app at your game files to see each ability in full: damage, scaling, cooldowns, crowd control, shields and heals.')}</div>`;
+  const row = (slot) => {
+    const name = slot === 'attack' ? '' : k.names?.[slot] || '';
+    const text = slot === 'attack' ? '' : describe(k, slot, esc);
+    return `<div class="kit-row"><div class="kit-head"><span class="muted small">${SLOT_LABEL[slot]}</span> <strong>${esc(name)}</strong> <span class="muted small">${esc(actionFacts(k[slot]))}</span></div>${text ? `<div class="kit-text">${text}</div>` : ''}</div>`;
+  };
+  return `<div class="card"><h2>Abilities</h2>
+    <p class="muted small">The game's own descriptions, with the numbers filled in from its champion data (base values, before balance patches). A ? is a value the data does not spell out.</p>
+    ${SLOTS.map(row).join('')}</div>`;
+}
+
+export function champ(m, r, app) {
   const c = r.id; const ch = m.champs[c];
   if (!ch) return '<div class="card">Champion not found.</div>';
   const f = filt('champ', { patch: 'all' });
@@ -391,14 +420,13 @@ export function champ(m, r) {
       ${[['Attack', 'attack'], ['Ability power', 'magic_power'], ['Health', 'hp'], ['Armor', 'defence'], ['Magic resist', 'magic_resistance'], ['Move speed', 'move_speed']]
         .map(([l, k]) => `<div class="kv"><span>${l}</span><span class="num">${st[k]}${gr[k] ? ` <span class="muted">+${gr[k]}/lvl</span>` : ''}</span></div>`).join('')}
       <div class="kv"><span>Attack range</span><span class="num">${ch.range ? ch.range / 1000 : '–'}</span></div>
-      <h2>Abilities</h2>
-      ${ch.skills.map((n, i) => `<div class="kv"><span>${['Ability 1', 'Ability 2', 'Ultimate'][i]}</span><span>${esc(n)}</span></div>`).join('')}
     </div>
     <div class="card">
       <h2>Best with</h2>${best(sy, 1)}
       <h2>Worst with</h2>${best(sy, -1)}
     </div>
   </div>
+  ${kitCard(m, c, app)}
   <div class="grid two">
     <div class="card"><h2>Strong against</h2><p class="muted small">Win rate when facing these champions.</p>${best(vv, 1)}</div>
     <div class="card"><h2>Weak against</h2>${best(vv, -1)}</div>

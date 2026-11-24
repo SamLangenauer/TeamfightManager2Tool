@@ -7,6 +7,18 @@ function open() {
     r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
   });
 }
+async function put(key, value) {
+  const db = await open();
+  await new Promise((res, rej) => { const t = db.transaction(STORE, 'readwrite'); t.objectStore(STORE).put(value, key); t.oncomplete = res; t.onerror = () => rej(t.error); });
+}
+async function get(key) {
+  const db = await open();
+  return new Promise((res, rej) => { const t = db.transaction(STORE, 'readonly'); const q = t.objectStore(STORE).get(key); q.onsuccess = () => res(q.result || null); q.onerror = () => rej(q.error); });
+}
+// Champion kits read from the user's game install.
+export async function saveKits(v) { try { await put('kits', v); } catch (e) { console.warn('Could not keep champion kits', e); } }
+export async function loadKits() { try { return await get('kits'); } catch { return null; } }
+
 export async function saveLast(value) {
   try {
     const db = await open();

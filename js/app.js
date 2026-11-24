@@ -1,6 +1,7 @@
+import { readGameFile } from './gamefiles.js';
 import { Model } from './model.js';
 import { parseChampions } from './champions.js';
-import { saveLast, loadLast, clearLast } from './store.js';
+import { saveLast, loadLast, clearLast, saveKits, loadKits } from './store.js';
 import { handleSortClick, esc } from './ui.js';
 import * as V from './views.js';
 import { draftView, draftEvents } from './draftview.js';
@@ -40,9 +41,22 @@ async function champText() {
   return app.champText;
 }
 
+// Champion kits come from the user's bundle.game_data, read once and kept in this browser.
+async function loadGameFile(file) {
+  app.gameStatus = 'Reading champion data from the game files…'; render();
+  try {
+    const g = await readGameFile(file, (f) => { app.gameStatus = `Reading champion data from the game files… ${Math.round(f * 100)}%`; const el = document.getElementById('game-status'); if (el) el.textContent = app.gameStatus; });
+    app.game = g; app.gameStatus = null;
+    if (app.model) app.model.kits = g.kits;
+    await saveKits(g);
+  } catch (e) { app.gameStatus = 'Could not read that file: ' + e.message + '. Pick bundle.game_data from the game folder.'; }
+  render();
+}
+
 async function useDb(db, png, cache = true) {
   const champs = parseChampions(await champText());
   app.model = new Model(db, champs);
+  app.model.kits = app.game?.kits || null;
   app.png = png;
   if (cache) saveLast({ db, png, savedAt: Date.now() });
   if (!location.hash || location.hash === '#/' || location.hash.startsWith('#/load')) location.hash = '#/home';
@@ -73,6 +87,7 @@ document.addEventListener('click', async (ev) => {
   if (!act) return;
   const a = act.dataset.action;
   if (a === 'pick-file') document.getElementById('file-input').click();
+  else if (a === 'pick-game') document.getElementById('game-input').click();
   else if (a === 'load-last') {
     const last = await loadLast();
     if (last) useDb(last.db, last.png, false);
@@ -81,7 +96,8 @@ document.addEventListener('click', async (ev) => {
   else if (V.handleAction(a, act, app) || draftEvents(a, act, app) || resultsEvents(a, act, app)) render();
 });
 document.addEventListener('change', (ev) => {
-  if (ev.target.id === 'file-input' && ev.target.files[0]) { loadFile(ev.target.files[0]); ev.target.value = ''; } // reset so the same file can be picked again
+  if (ev.target.id === 'game-input' && ev.target.files[0]) { loadGameFile(ev.target.files[0]); ev.target.value = ''; }
+  else if (ev.target.id === 'file-input' && ev.target.files[0]) { loadFile(ev.target.files[0]); ev.target.value = ''; } // reset so the same file can be picked again
   else if (V.handleChange(ev.target, app) || draftEvents('change', ev.target, app) || resultsEvents('change', ev.target, app)) render();
 });
 document.addEventListener('input', (ev) => {
@@ -96,13 +112,16 @@ document.addEventListener('dragover', (ev) => { ev.preventDefault(); document.bo
 document.addEventListener('dragleave', (ev) => { if (!ev.relatedTarget) document.body.classList.remove('dragging'); });
 document.addEventListener('drop', (ev) => {
   ev.preventDefault(); document.body.classList.remove('dragging');
-  const f = ev.dataTransfer.files[0]; if (f) { app.model = null; location.hash = '#/load'; render(); loadFile(f); }
+  const f = ev.dataTransfer.files[0];
+  if (f && /\.game_data$/i.test(f.name)) { loadGameFile(f); return; }
+  if (f) { app.model = null; location.hash = '#/load'; render(); loadFile(f); }
 });
 window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
 
 (async () => {
   // ask the browser not to clear stored data (match history) under storage pressure
   try { await navigator.storage?.persist?.(); } catch {}
+  app.game = await loadKits();
   const last = await loadLast();
   app.hasLast = !!last; app.lastInfo = last ? { date: last.db.date, team: last.db.meta?.teamName, savedAt: last.savedAt } : null;
   render();

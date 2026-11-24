@@ -104,3 +104,12 @@ th.num { text-align: right; }
 .series .chip .x { background: none; border: 0; color: inherit; padding: 0 0 0 4px; cursor: pointer; font-size: 13px; line-height: 1; opacity: .8; }
 .series .chip .x:hover { opacity: 1; }
 .gchamp.used { opacity: .45; text-decoration: line-through; }
+
+/* champion kits */
+.kit-row { padding: 8px 0; border-top: 1px solid var(--line, rgba(127,127,127,.2)); }
+.kit-row:first-of-type { border-top: 0; }
+.kit-text { margin-top: 3px; line-height: 1.45; }
+.kit-phys { color: #e07b2a; } .kit-magic { color: #9a6cf0; } .kit-cc { color: #e0544f; }
+.kit-shield { color: #c9a92a; } .kit-hp { color: #3fae4a; } .kit-aspd, .kit-speed { color: inherit; font-weight: 600; }
+.kit-num, .kit-range, .kit-armor, .kit-mr, .kit-em { font-weight: 600; }
+.kit-q { color: var(--muted, #888); cursor: help; }
