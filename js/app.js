@@ -81,7 +81,7 @@ document.addEventListener('click', async (ev) => {
   else if (V.handleAction(a, act, app) || draftEvents(a, act, app) || resultsEvents(a, act, app)) render();
 });
 document.addEventListener('change', (ev) => {
-  if (ev.target.id === 'file-input' && ev.target.files[0]) loadFile(ev.target.files[0]);
+  if (ev.target.id === 'file-input' && ev.target.files[0]) { loadFile(ev.target.files[0]); ev.target.value = ''; } // reset so the same file can be picked again
   else if (V.handleChange(ev.target, app) || draftEvents('change', ev.target, app) || resultsEvents('change', ev.target, app)) render();
 });
 document.addEventListener('input', (ev) => {
@@ -101,6 +101,8 @@ document.addEventListener('drop', (ev) => {
 window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); });
 
 (async () => {
+  // ask the browser not to clear stored data (match history) under storage pressure
+  try { await navigator.storage?.persist?.(); } catch {}
   const last = await loadLast();
   app.hasLast = !!last; app.lastInfo = last ? { date: last.db.date, team: last.db.meta?.teamName, savedAt: last.savedAt } : null;
   render();

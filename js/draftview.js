@@ -120,10 +120,10 @@ export function draftView(m, r) {
   }).join('');
 
   function resultBox() {
-    if (recorded) return `<p>Recorded as a <strong>${recorded.won ? 'win' : 'loss'}</strong>. The model has been updated with it.</p>
-      <div class="row gap"><button data-action="draft-next">Next draft</button><button class="ghost" data-action="draft-unrecord">Undo the result</button><a href="#/results">See all results</a></div>`;
-    return `<p>The model gives you a <strong>${pct(out)}</strong> chance with this draft. Once the game is over, record how it went so it can learn from it.</p>
-      <div class="row gap"><button data-action="draft-result" data-won="1">We won</button><button data-action="draft-result" data-won="0">We lost</button></div>
+    if (recorded) return `<p>${recorded.won == null ? 'Saved to your match history. Open your save after the game and the result is filled in from it.' : `Recorded as a <strong>${recorded.won ? 'win' : 'loss'}</strong>. The model has been updated with it.`}</p>
+      <div class="row gap"><button data-action="draft-next">Next draft</button><button class="ghost" data-action="draft-unrecord">Remove from history</button><a href="#/results">Match history</a></div>`;
+    return `<p>The model gives you a <strong>${pct(out)}</strong> chance with this draft. Once the game is over, record how it went so it can learn from it. Every recorded draft stays in your match history when you load a newer save.</p>
+      <div class="row gap"><button data-action="draft-result" data-won="1">We won</button><button data-action="draft-result" data-won="0">We lost</button><button class="ghost" data-action="draft-result" data-won="">Fill it in from my next save</button></div>
       <p class="muted small">Or undo to try another line.</p>`;
   }
 
@@ -225,7 +225,7 @@ export function draftEvents(a, el, app) {
       lineup: { us: engine.lineup.us.slice(), them: engine.lineup.them.slice() },
       roles: { us: { ...D.roles.us }, them: { ...D.roles.them } }, tactics: currentTactics(m, st),
       predicted: L.predict({ us: st.us.picks, them: st.them.picks, lineupUs: engine.lineup.us, lineupThem: engine.lineup.them, sideA: D.side === 'A', roles: D.roles }),
-      won: el.dataset.won === '1',
+      won: el.dataset.won === '' ? null : el.dataset.won === '1',
     };
     results.save([...results.all(), rec]); L.retrain();
     D.recorded = rec.id; save(); return true;
