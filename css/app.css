@@ -100,3 +100,7 @@ th.num { text-align: right; }
 .gchamp { color: #fff; border: none; text-align: left; }
 .gchamp:disabled { opacity: .25; }
 @media (max-width: 600px) { header.top { padding: 8px 12px; } main { padding: 0 12px 24px; } .grid.two, .grid.three { grid-template-columns: 1fr; } }
+
+.series .chip .x { background: none; border: 0; color: inherit; padding: 0 0 0 4px; cursor: pointer; font-size: 13px; line-height: 1; opacity: .8; }
+.series .chip .x:hover { opacity: 1; }
+.gchamp.used { opacity: .45; text-decoration: line-through; }
