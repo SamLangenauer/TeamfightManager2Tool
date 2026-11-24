@@ -75,7 +75,15 @@ th.num { text-align: right; }
 @media (max-width: 1000px) { .draft-grid { grid-template-columns: 1fr; } .grid.two { grid-template-columns: 1fr; } }
 .board .bans { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
 .board .picks { display: flex; flex-direction: column; gap: 6px; white-space: normal; }
-.slot { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-height: 34px; display: flex; flex-direction: column; justify-content: center; cursor: pointer; background: var(--panel2); }
+.slot { border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; min-height: 34px; display: flex; flex-direction: column; justify-content: center; gap: 3px; background: var(--panel2); }
+.slot-main { cursor: pointer; }
+.role-pick { font-size: 12px; padding: 1px 4px; max-width: 100%; }
+.role-pick:not(.locked) { color: var(--muted); }
+.bslot { display: inline-block; padding: 2px 8px; border-radius: 6px; margin: 2px 4px 2px 0; font-size: 12.5px; background: var(--panel2); border-left: 3px solid var(--muted); white-space: nowrap; }
+.bslot.line-ad { border-left-color: #e0703a; } .bslot.line-as { border-left-color: #d4a017; } .bslot.line-def { border-left-color: #8a8f98; }
+.bslot.line-mr { border-left-color: #6a7fd8; } .bslot.line-ap { border-left-color: #a35ad8; } .bslot.line-hp { border-left-color: #3fa66b; }
+.plan details { margin-top: 4px; } .plan .alt { margin: 4px 0; }
+.plan td { vertical-align: top; }
 .slot.ban { min-width: 70px; opacity: .9; }
 .slot.ban.filled .chip { text-decoration: line-through; filter: grayscale(.4); }
 .slot.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }

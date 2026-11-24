@@ -66,12 +66,18 @@ export class DraftEngine {
   // Best role assignment for a list of picks; returns value and roles.
   assign(side, picks) {
     if (picks.length > 5) picks = picks.slice(0, 5);
-    let best = { v: 0, roles: [] };
-    for (const perm of PERMS[picks.length]) {
-      let v = 0; for (let i = 0; i < picks.length; i++) v += this.fit(side, picks[i], perm[i]);
-      if (v > best.v || !best.roles.length) best = { v, roles: perm };
-    }
-    return best;
+    const fx = this.fixed?.[side] || {};
+    const run = (strict) => {
+      let best = null;
+      for (const perm of PERMS[picks.length]) {
+        if (strict && picks.some((c, i) => fx[c] != null && perm[i] !== fx[c])) continue;
+        let v = 0; for (let i = 0; i < picks.length; i++) v += this.fit(side, picks[i], perm[i]);
+        if (!best || v > best.v) best = { v, roles: perm };
+      }
+      return best;
+    };
+    // roles you set on the board are kept; if they clash, fall back to the best fit
+    return run(true) || run(false) || { v: 0, roles: [] };
   }
 
   meta(c) { const s = this.stats[c]; return { win: s.adjWin, presence: s.presence, picks: s.picks }; }
