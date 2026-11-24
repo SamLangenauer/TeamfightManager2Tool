@@ -17,11 +17,29 @@ function permutations(n, k) { // all injective maps of k picks to n roles
   rec([], []);
   return out;
 }
-const PERMS = Array.from({ length: 6 }, (_, k) => permutations(5, k));
+export const PERMS = Array.from({ length: 6 }, (_, k) => permutations(5, k));
+
+export function compScore(champs, mine, c) {
+  const chs = mine.map((x) => champs[x]);
+  const ch = champs[c];
+  let v = 0;
+  const n = chs.length + 1;
+  const front = chs.filter(isFront).length, ap = chs.filter(isAP).length, ad = chs.filter((x) => isAD(x) && !isAP(x)).length;
+  const sus = chs.filter(isSustain).length, cc = chs.filter(hasCC).length;
+  if (isFront(ch)) v += front === 0 ? (n >= 3 ? 8 : 4) : front >= 2 ? -4 : 0;
+  else if (front === 0 && n >= 4) v -= 6;
+  if (isAP(ch) && ap === 0 && ad >= 2) v += 4;
+  if (isAD(ch) && !isAP(ch) && ad >= 3) v -= 4;
+  if (isAP(ch) && ap >= 3) v -= 4;
+  if (isSustain(ch) && sus === 0 && n >= 3) v += 3;
+  if (hasCC(ch) && cc === 0 && n >= 3) v += 2;
+  return v;
+}
+
 
 export class DraftEngine {
-  constructor(model, { us, them, patches }) {
-    this.m = model; this.us = us; this.them = them;
+  constructor(model, { us, them, patches, learner = null }) {
+    this.m = model; this.us = us; this.them = them; this.learner = learner;
     let games = model.filterGames({ patches });
     if (games.length < 200) games = model.games; // too few games on this patch: use everything
     this.games = games;
@@ -81,26 +99,18 @@ export class DraftEngine {
     parts.comp = this.compScore(mine, c);
     const t = this.tend[side]; const tg = this.teamGames[side] || 1;
     parts.habit = Math.min(1, (t.picks[c] || 0) / tg * 3) * 6; // teams lean on what they practice
+    const L = this.learner;
+    if (L) {
+      // weights learned from pro games and your recorded results
+      for (const k of ['fit', 'meta', 'synergy', 'counter', 'comp']) if (L.mult[k] != null) parts[k] *= L.mult[k];
+      const y = side === 'us' && L.yours[this.us + '|' + c];
+      if (y) parts.yours = y.adj * 40;
+    }
     const total = Object.values(parts).reduce((a, b) => a + b, 0);
     return { c, total, parts, role, player, picks: s.picks };
   }
 
-  compScore(mine, c) {
-    const chs = mine.map((x) => this.m.champs[x]);
-    const ch = this.m.champs[c];
-    let v = 0;
-    const n = chs.length + 1;
-    const front = chs.filter(isFront).length, ap = chs.filter(isAP).length, ad = chs.filter((x) => isAD(x) && !isAP(x)).length;
-    const sus = chs.filter(isSustain).length, cc = chs.filter(hasCC).length;
-    if (isFront(ch)) v += front === 0 ? (n >= 3 ? 8 : 4) : front >= 2 ? -4 : 0;
-    else if (front === 0 && n >= 4) v -= 6;
-    if (isAP(ch) && ap === 0 && ad >= 2) v += 4;
-    if (isAD(ch) && !isAP(ch) && ad >= 3) v -= 4;
-    if (isAP(ch) && ap >= 3) v -= 4;
-    if (isSustain(ch) && sus === 0 && n >= 3) v += 3;
-    if (hasCC(ch) && cc === 0 && n >= 3) v += 2;
-    return v;
-  }
+  compScore(mine, c) { return compScore(this.m.champs, mine, c); }
 
   available(state) {
     const taken = new Set([...state.us.picks, ...state.them.picks, ...state.us.bans, ...state.them.bans]);

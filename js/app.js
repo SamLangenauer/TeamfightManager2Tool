@@ -4,6 +4,7 @@ import { saveLast, loadLast, clearLast } from './store.js';
 import { handleSortClick, esc } from './ui.js';
 import * as V from './views.js';
 import { draftView, draftEvents } from './draftview.js';
+import { resultsView, resultsEvents } from './resultsview.js';
 
 const app = { model: null, png: null, champText: null };
 window.tfm2 = app; // handy for debugging in the console
@@ -13,7 +14,7 @@ const nav = document.getElementById('nav');
 
 const routes = {
   home: V.home, players: V.players, player: V.player, teams: V.teams, team: V.team,
-  scout: V.scout, meta: V.meta, champ: V.champ, games: V.games, game: V.game, draft: draftView,
+  scout: V.scout, meta: V.meta, champ: V.champ, games: V.games, game: V.game, draft: draftView, results: resultsView,
 };
 
 function parseHash() {
@@ -77,11 +78,11 @@ document.addEventListener('click', async (ev) => {
     if (last) useDb(last.db, last.png, false);
   } else if (a === 'forget') { await clearLast(); app.model = null; location.hash = '#/load'; render(); }
   else if (a === 'new-save') { app.model = null; location.hash = '#/load'; render(); }
-  else if (V.handleAction(a, act, app) || draftEvents(a, act, app)) render();
+  else if (V.handleAction(a, act, app) || draftEvents(a, act, app) || resultsEvents(a, act, app)) render();
 });
 document.addEventListener('change', (ev) => {
   if (ev.target.id === 'file-input' && ev.target.files[0]) loadFile(ev.target.files[0]);
-  else if (V.handleChange(ev.target, app) || draftEvents('change', ev.target, app)) render();
+  else if (V.handleChange(ev.target, app) || draftEvents('change', ev.target, app) || resultsEvents('change', ev.target, app)) render();
 });
 document.addEventListener('input', (ev) => {
   if (ev.target.matches('[data-live]') && (V.handleChange(ev.target, app) || draftEvents('input', ev.target, app))) {

@@ -23,7 +23,16 @@ The game files are only read, never changed.
 - **Scout:** find players to sign. Filter by role, age, potential, league, free agents or expiring contracts, ranked by current level, room to grow and recent form.
 - **Meta:** pick, ban and win rates per champion for any patch, region or league, plus the best pairs and counters.
 - **Games:** every pro game in the save, with drafts, scores and per-player stats.
-- **Draft:** pick your opponent and your side, then enter each ban and pick as it happens in the game. Every suggestion shows why it scored that way: meta strength, how well it fits your players, synergy with your picks, how it does against their picks, team composition, and what it takes away from them. When it's their turn, it shows what they are likely to do.
+- **Draft:** pick your opponent and your side, then enter each ban and pick as it happens in the game. Every suggestion shows why it scored that way: meta strength, how well it fits your players, synergy with your picks, how it does against their picks, team composition, and what it takes away from them. When it's their turn, it shows what they are likely to do. A win chance updates after every pick, and each suggested pick shows your win chance if you take it.
+- **Results:** when a draft is done, record whether you won. The win model retrains right away and the suggestions change with it. This page shows how accurate the model is, what it has learned decides games, and which champions are doing better or worse than expected for you. Results stay in your browser; export them to back them up.
+
+## How the win model learns
+
+The win chance comes from a logistic regression on seven draft features, each compared between the two teams: player and role fit, champion strength, synergy, matchups, team composition, overall player strength, and which side picks first. It is trained on every pro game in the save. Each game's own result is left out of the stats used to describe it, so it cannot cheat.
+
+On the newest 20% of pro games, held out from training, it picks the winner about 70% of the time. The old hand-made formula managed about 65%.
+
+Each result you record counts as five pro games. The learned weights then scale the matching parts of the draft suggestions (between ×0.25 and ×3). Champions that beat or miss the model's expectations in your games get a small "Your results" bonus or penalty. Loading a newer save also adds every game played since, including yours.
 
 ## Notes on the data
 
