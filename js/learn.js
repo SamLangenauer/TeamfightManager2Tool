@@ -85,10 +85,13 @@ export class Learner {
     if (ex && ex.picks[side].includes(a) && ex.picks[sameTeam ? side : 1 - side].includes(b)) { g--; if (ex.winner === side) w--; }
     return g > 0 ? wr(w, g, 8) : 0.5;
   }
-  fitValue(picks, lineup, ex) {
+  fitValue(picks, lineup, ex, fixed) {
     if (!picks.length) return 0;
     let best = -1;
+    const fx = fixed || {};
+    const strict = PERMS[Math.min(5, picks.length)].some((perm) => picks.every((c, i) => fx[c] == null || perm[i] === fx[c]));
     for (const perm of PERMS[Math.min(5, picks.length)]) {
+      if (strict && picks.some((c, i) => fx[c] != null && perm[i] !== fx[c])) continue;
       let v = 0;
       for (let i = 0; i < perm.length; i++) {
         const c = picks[i], r = perm[i], s = this.stats[c];
@@ -101,7 +104,7 @@ export class Learner {
     }
     return best;
   }
-  sideValue(i, { picks, lineup, exclude }) {
+  sideValue(i, { picks, lineup, exclude, fixed }) {
     const mine = picks[i].filter(Boolean), theirs = picks[1 - i].filter(Boolean);
     let meta = 0; for (const c of mine) meta += this.champWin(c, exclude, i) - 0.5;
     let syn = 0, sn = 0;
@@ -112,7 +115,7 @@ export class Learner {
     const l = lineup?.[i] || [];
     const ratings = l.map((aid) => (aid == null ? null : this.m.athletes[aid]?.rating)).filter((v) => v != null);
     return {
-      fit: this.fitValue(mine, l, exclude), meta, synergy: sn ? syn / sn : 0, counter: cn ? ctr / cn : 0, comp: comp / 10,
+      fit: this.fitValue(mine, l, exclude, fixed?.[i]), meta, synergy: sn ? syn / sn : 0, counter: cn ? ctr / cn : 0, comp: comp / 10,
       rating: ratings.length ? ratings.reduce((a, b) => a + b, 0) / ratings.length : null,
     };
   }
@@ -186,11 +189,11 @@ export class Learner {
   }
 
   recordFeatures(r) {
-    return this.features({ picks: [r.picks.us, r.picks.them], lineup: [r.lineup.us, r.lineup.them], sideA: r.side === 'A' });
+    return this.features({ picks: [r.picks.us, r.picks.them], lineup: [r.lineup.us, r.lineup.them], sideA: r.side === 'A', fixed: r.roles ? [r.roles.us, r.roles.them] : null });
   }
   // Win chance for us from a (partial) draft.
-  predict({ us, them, lineupUs, lineupThem, sideA }) {
-    return this.prob(this.w, this.features({ picks: [us, them], lineup: [lineupUs, lineupThem], sideA }));
+  predict({ us, them, lineupUs, lineupThem, sideA, roles }) {
+    return this.prob(this.w, this.features({ picks: [us, them], lineup: [lineupUs, lineupThem], sideA, fixed: roles ? [roles.us, roles.them] : null }));
   }
   weights() {
     return FEATURES.map((f, j) => ({ ...f, w: this.w[j], wPro: this.wPro[j], mult: this.mult[f.key] }));

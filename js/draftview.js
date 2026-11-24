@@ -3,6 +3,7 @@ import { ROLES, pct } from './model.js';
 import { esc, select } from './ui.js';
 import { local } from './store.js';
 import { learner, results } from './learn.js';
+import { recommendBuilds, recommendTactics, TACTICS, LINES, damageBucket, BUCKETS, planStats } from './gameplan.js';
 
 let D = local.get('draft', null);
 let engine = null, engineKey = '';
@@ -34,6 +35,9 @@ function ensure(m, r) {
   }
   engine.lineup = { us: D.lineup.us.slice(), them: D.lineup.them.slice() };
   engine.comfortCache.clear();
+  D.roles = D.roles || { us: {}, them: {} };
+  D.tactics = D.tactics || {};
+  engine.fixed = D.roles;
 }
 
 function stateFrom(steps) {
@@ -64,7 +68,7 @@ export function draftView(m, r) {
     label = `${ourTurn ? 'Your' : `${m.teamName(D.opp)}'s`} ${step.kind} (${step.kind === 'ban' ? 'ban' : 'pick'} ${steps.slice(0, cur + 1).filter((s) => s.side === step.side && s.kind === step.kind).length})`;
   }
   const L = learner(m);
-  const predictFor = (usPicks, themPicks) => L.predict({ us: usPicks, them: themPicks, lineupUs: engine.lineup.us, lineupThem: engine.lineup.them, sideA: D.side === 'A' });
+  const predictFor = (usPicks, themPicks) => L.predict({ us: usPicks, them: themPicks, lineupUs: engine.lineup.us, lineupThem: engine.lineup.them, sideA: D.side === 'A', roles: D.roles });
   const out = predictFor(st.us.picks, st.them.picks);
   const recorded = D.recorded ? results.all().find((x) => x.id === D.recorded) : null;
   const assigned = { us: engine.assign('us', st.us.picks), them: engine.assign('them', st.them.picks) };
@@ -79,9 +83,12 @@ export function draftView(m, r) {
       const pickIdx = kind === 'pick' && c ? st[who].picks.indexOf(c) : -1;
       const role = pickIdx >= 0 ? assigned[who].roles[pickIdx] : null;
       const aid = role != null ? engine.lineup[who][role] : null;
-      return `<div class="slot ${kind} ${i === cur ? 'current' : ''} ${c ? 'filled' : ''}" data-action="draft-goto" data-step="${i}" title="Click to redo from here">
-        ${c ? `<span class="chip cat-${(m.champs[c]?.cat || '').toLowerCase()}">${esc(m.champName(c))}</span>` : `<span class="muted">${i === cur ? 'now' : '–'}</span>`}
-        ${role != null ? `<span class="muted small">${ROLES[role]}${aid != null ? ' · ' + esc(m.athletes[aid]?.name || '') : ''}</span>` : ''}
+      const locked = c && D.roles[who][c] != null;
+      const roleSel = role != null ? `<select name="role-${who}-${c}" data-draft="role" class="role-pick ${locked ? 'locked' : ''}" title="${locked ? 'Role you set' : 'Guessed role. Change it once you see where they play.'}">
+          <option value="">${locked ? 'Guess' : ROLES[role] + ' (guess)'}</option>${ROLES.map((rn, ri) => `<option value="${ri}" ${locked && D.roles[who][c] === ri ? 'selected' : ''}>${rn}</option>`).join('')}</select>` : '';
+      return `<div class="slot ${kind} ${i === cur ? 'current' : ''} ${c ? 'filled' : ''}">
+        <span class="slot-main" data-action="draft-goto" data-step="${i}" title="Click to redo from here">${c ? `<span class="chip cat-${(m.champs[c]?.cat || '').toLowerCase()}">${esc(m.champName(c))}</span>` : `<span class="muted">${i === cur ? 'now' : '–'}</span>`}</span>
+        ${roleSel}${aid != null ? `<span class="muted small">${esc(m.athletes[aid]?.name || '')}</span>` : ''}
       </div>`;
     };
     return `<div class="card board ${who}">
@@ -120,6 +127,39 @@ export function draftView(m, r) {
       <p class="muted small">Or undo to try another line.</p>`;
   }
 
+  function gamePlan() {
+    if (st.us.picks.length < 5 || st.them.picks.length < 5) return '';
+    const byRole = (who) => { const out = [null, null, null, null, null]; st[who].picks.forEach((c, i) => { const r = assigned[who].roles[i]; if (r != null) out[r] = c; }); return out; };
+    const us = { byRole: byRole('us') }, them = { byRole: byRole('them') };
+    const plan = recommendTactics(m, us, them, results.all().filter((h) => h.us === D.us));
+    const slotChips = (slots) => slots.map((v, k) => `<span class="bslot line-${LINES[v]?.key}" title="Builds into ${esc(LINES[v]?.items[4] || '')}"><span class="muted small">${k + 1}</span> ${esc(LINES[v]?.name || '?')}</span>`).join('');
+    const rows = us.byRole.map((c, r) => {
+      if (!c) return '';
+      const aid = engine.lineup.us[r];
+      const b = recommendBuilds(m, c, r, st.them.picks);
+      const best = b.builds[0];
+      const alt = b.builds.slice(1).map((x) => `<div class="alt">${slotChips(x.slots)} <span class="muted small">${pct((x.w + 5) / (x.g + 10))} in ${x.g}</span></div>`).join('');
+      return `<tr><td>${ROLES[r]}</td><td>${aid != null ? esc(m.athletes[aid]?.name || '') : '<span class="muted">–</span>'}</td><td><a href="#/champ/${c}">${esc(m.champName(c))}</a></td>
+        <td>${best ? `<div>${slotChips(best.slots)}</div><div class="muted small">Pros won ${best.w} of ${best.g} games with it${b.byRole ? ` as ${ROLES[r]}` : ''}${best.ge ? `, and ${best.we} of ${best.ge} in any role against ${b.bucketName} damage like theirs` : ''}.${b.common && b.common.key !== best.key ? ` Most common: ${esc(b.common.key.split('-').map((v) => LINES[v].name).join(' → '))}.` : ''}</div>${alt ? `<details><summary class="small">Other good builds</summary>${alt}</details>` : ''}` : '<span class="muted">Not enough pro games with this champion.</span>'}</td></tr>`;
+    }).join('');
+    const tac = TACTICS.map((t) => {
+      const rec = plan.tactics[t.key];
+      const cur = D.tactics[t.key] || rec.choice;
+      const recTxt = rec.record ? ` You are ${rec.record.w}–${rec.record.g - rec.record.w} when you used it.` : '';
+      return `<tr><td>${esc(t.name)}</td><td>${select('tactic-' + t.key, Object.entries(t.opts).map(([k, v]) => [k, v + (k === rec.choice ? ' ★' : '')]), cur, 'data-draft="tactic"')}</td>
+        <td class="small">${esc(rec.reason)}${esc(recTxt)}${cur !== rec.choice ? ' <span class="muted">(You changed this.)</span>' : ''}</td></tr>`;
+    }).join('');
+    return `<div class="card plan">
+      <h2>Game plan</h2>
+      <p class="muted small">Set these on the tactics screen before the game. Builds are the four item slots, from what pro players set on each champion in this save and how those games went. Their damage is ${BUCKETS[damageBucket(m.champs, st.them.picks)]}. Change an enemy's role on the board if they ended up somewhere else, and this updates.</p>
+      ${planStats(m).hasItems ? '' : '<p class="error small">This save was opened with an older version of the app, so item builds are missing. Open the save file again to add them.</p>'}
+      <div class="table-wrap"><table class="data"><thead><tr><th>Role</th><th>Player</th><th>Champion</th><th>Item build (slot 1 → 4)</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <h2 style="margin-top:14px">Team tactics</h2>
+      <p class="muted small">★ is the suggestion. The save does not record which tactics teams used, so these come from rules applied to the draft: lane matchups between the champions in each role, which side is stronger in longer games, teamfight and range. Whatever you set here is saved with the result, so your record with each choice builds up.</p>
+      <div class="table-wrap"><table class="data"><thead><tr><th>Setting</th><th>Choice</th><th>Why</th></tr></thead><tbody>${tac}</tbody></table></div>
+    </div>`;
+  }
+
   const taken = new Set(D.entries.filter(Boolean));
   const q = (D.filter || '').toLowerCase();
   const grid = m.champIds.filter((c) => !q || m.champName(c).toLowerCase().includes(q))
@@ -149,6 +189,7 @@ export function draftView(m, r) {
     </div>
     ${board('them')}
   </div>
+  ${gamePlan()}
   <div class="grid two">
     <div class="card"><h2>Your lineup</h2>${lineupEditor('us')}</div>
     <div class="card"><h2>Their lineup</h2>${lineupEditor('them')}</div>
@@ -160,13 +201,21 @@ export function draftView(m, r) {
   </div>`;
 }
 
+// Tactics as they stand: your changes on top of the suggestions.
+function currentTactics(m, st) {
+  const byRole = (who) => { const out = [null, null, null, null, null]; const a = engine.assign(who, st[who].picks); st[who].picks.forEach((c, i) => { const r = a.roles[i]; if (r != null) out[r] = c; }); return out; };
+  if (st.us.picks.length < 5 || st.them.picks.length < 5) return null;
+  const plan = recommendTactics(m, { byRole: byRole('us') }, { byRole: byRole('them') });
+  return Object.fromEntries(TACTICS.map((t) => [t.key, D.tactics?.[t.key] || plan.tactics[t.key].choice]));
+}
+
 export function draftEvents(a, el, app) {
   if (!D) return false;
   const steps = sequence(D.bansPer, D.order);
   if (a === 'draft-pick') { if (D.entries.length < steps.length && !D.entries.includes(el.dataset.c)) { D.entries.push(el.dataset.c); D.filter = ''; save(); } return true; }
   if (a === 'draft-undo') { D.entries.pop(); D.recorded = null; save(); return true; }
-  if (a === 'draft-reset') { D.entries = []; D.recorded = null; save(); return true; }
-  if (a === 'draft-next') { D.entries = []; D.recorded = null; save(); return true; }
+  if (a === 'draft-reset') { D.entries = []; D.recorded = null; D.roles = { us: {}, them: {} }; D.tactics = {}; save(); return true; }
+  if (a === 'draft-next') { D.entries = []; D.recorded = null; D.roles = { us: {}, them: {} }; D.tactics = {}; save(); return true; }
   if (a === 'draft-result') {
     const m = app.model, st = stateFrom(steps), L = learner(m);
     const rec = {
@@ -174,7 +223,8 @@ export function draftEvents(a, el, app) {
       us: D.us, opp: D.opp, usName: m.teamName(D.us), oppName: m.teamName(D.opp), side: D.side,
       picks: { us: st.us.picks, them: st.them.picks }, bans: { us: st.us.bans, them: st.them.bans },
       lineup: { us: engine.lineup.us.slice(), them: engine.lineup.them.slice() },
-      predicted: L.predict({ us: st.us.picks, them: st.them.picks, lineupUs: engine.lineup.us, lineupThem: engine.lineup.them, sideA: D.side === 'A' }),
+      roles: { us: { ...D.roles.us }, them: { ...D.roles.them } }, tactics: currentTactics(m, st),
+      predicted: L.predict({ us: st.us.picks, them: st.them.picks, lineupUs: engine.lineup.us, lineupThem: engine.lineup.them, sideA: D.side === 'A', roles: D.roles }),
       won: el.dataset.won === '1',
     };
     results.save([...results.all(), rec]); L.retrain();
@@ -191,6 +241,13 @@ export function draftEvents(a, el, app) {
       if (el.name === 'us' || el.name === 'opp') D.lineup = null;
       save(); return true;
     }
+    if (el.dataset.draft === 'role') {
+      const [, who, ...rest] = el.name.split('-'); const c = rest.join('-');
+      D.roles = D.roles || { us: {}, them: {} };
+      if (el.value === '') delete D.roles[who][c]; else D.roles[who][c] = +el.value;
+      save(); return true;
+    }
+    if (el.dataset.draft === 'tactic') { D.tactics = D.tactics || {}; D.tactics[el.name.slice(7)] = el.value; save(); return true; }
     if (el.dataset.draft === 'lineup') {
       const [, who, i] = el.name.split('-');
       D.lineup[who][+i] = el.value === '' ? null : +el.value; save(); return true;

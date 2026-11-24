@@ -330,7 +330,13 @@ function readPlayers(r, b, s, e, champSet, picks, nAth) {
     if (side < 0) continue;
     const pi = pickIndex[side].get(champ);
     if (out[side][pi]) continue;
-    out[side][pi] = { aid, slot, stat: st.stat };
+    // after the champion name: Vec<item index> (the 4 item slots, 0..29 = line*5 + tier)
+    let items = null;
+    try {
+      const at = t.p + 8 + champ.length, n = r.q(at);
+      if (n <= 6) { items = []; for (let k = 0; k < n; k++) { const v = r.q(at + 8 + 8 * k); if (v > 63) { items = null; break; } items.push(v); } }
+    } catch { items = null; }
+    out[side][pi] = { aid, slot, stat: st.stat, items };
     q = t.p;
   }
   return out;

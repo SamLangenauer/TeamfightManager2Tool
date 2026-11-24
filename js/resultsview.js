@@ -2,6 +2,7 @@
 import { learner, results, YOUR_WEIGHT } from './learn.js';
 import { esc, table, bar } from './ui.js';
 import { pct } from './model.js';
+import { TACTICS } from './gameplan.js';
 
 const chips = (m, list) => list.map((c) => `<a class="chip cat-${(m.champs[c]?.cat || 'x').toLowerCase()}" href="#/champ/${c}">${esc(m.champName(c))}</a>`).join('');
 
@@ -24,6 +25,14 @@ export function resultsView(m) {
 
   const surprises = Object.entries(L.yours).map(([k, v]) => { const [team, c] = k.split('|'); return { team: +team, c, ...v }; })
     .filter((x) => Math.abs(x.adj) >= 0.02).sort((a, b) => b.adj - a.adj);
+
+  const withTac = done.filter((r) => r.tactics);
+  const tacCard = withTac.length ? `<div class="card"><h2>Your record with each tactic</h2>
+    <p class="muted small">From the ${withTac.length} recorded game${withTac.length === 1 ? '' : 's'} where the draft was finished. Small samples, so read it as a hint.</p>
+    <div class="table-wrap"><table class="data"><thead><tr><th>Setting</th>${'<th>Choice</th><th class="num">Record</th>'.repeat(1)}</tr></thead><tbody>${TACTICS.map((t) => {
+      const opts = Object.entries(t.opts).map(([k, v]) => { const g = withTac.filter((r) => r.tactics[t.key] === k); return g.length ? `${esc(v)} <span class="muted small">${g.filter((r) => r.won).length}–${g.filter((r) => !r.won).length}</span>` : null; }).filter(Boolean);
+      return opts.length ? `<tr><td>${esc(t.name)}</td><td colspan="2">${opts.join(' · ')}</td></tr>` : '';
+    }).join('')}</tbody></table></div></div>` : '';
 
   const rows = table('results', list, [
     { key: 'gameDate', label: 'In-game date', value: (r) => r.gameDate },
@@ -64,6 +73,7 @@ export function resultsView(m) {
   ${surprises.length ? `<div class="card"><h2>Champions doing better or worse than expected for you</h2>
     <p class="muted small">From your recorded games: how far results ran above or below what the model expected when you picked them, held back for small samples. This shows up as "Your results" in draft suggestions.</p>
     ${surprises.map((x) => `<div class="kv"><span>${chips(m, [x.c])} <span class="muted small">${esc(m.teamName(x.team))}, ${x.n} game${x.n === 1 ? '' : 's'}</span></span><span class="num">${x.adj >= 0 ? '+' : ''}${(x.adj * 100).toFixed(0)} pts</span></div>`).join('')}</div>` : ''}
+  ${tacCard}
   <div class="card">
     <h2>Recorded games</h2>
     <div class="row gap" style="margin:0 0 10px">
