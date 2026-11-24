@@ -41,6 +41,7 @@ Each result you record counts as five pro games. The learned weights then scale 
 - Winners are read from the final score of each game. This agrees with series results about 96% of the time.
 - Potential and the other hidden traits are the true values stored in the save, not the scouted estimates the game shows you.
 - Champion data (names, roles, stats and skills) is in `data/champions.tsv`, taken from the game's data file.
+- Every champion's full kit is in `data/kits.json`: each ability's parameters (damage, ratios, cooldowns, ranges, crowd control, shields and heals) and the game's English description. Times there are in ticks (60 a second) and ranges in thousandths. The champion page shows each ability with its numbers filled in.
 
 ## Hosting on GitHub Pages
 
@@ -53,6 +54,7 @@ No build step. Plain ES modules:
 - `js/decoder.js` reads the save format (see the comments there).
 - `js/worker.js` decodes in a Web Worker.
 - `js/model.js` builds indexes and statistics.
+- `js/kits.js` loads the champion kits and fills in ability descriptions.
 - `js/draft.js` is the draft engine; `js/draftview.js` is its page.
 - `js/views.js` holds the other pages.
 

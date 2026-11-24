@@ -1,3 +1,4 @@
+import { loadKits } from './kits.js';
 import { Model } from './model.js';
 import { parseChampions } from './champions.js';
 import { saveLast, loadLast, clearLast } from './store.js';
@@ -40,9 +41,15 @@ async function champText() {
   return app.champText;
 }
 
+async function kits() {
+  if (!app.kits) app.kits = await loadKits().catch((e) => { console.warn('champion kits not loaded', e); return {}; });
+  return app.kits;
+}
+
 async function useDb(db, png, cache = true) {
   const champs = parseChampions(await champText());
   app.model = new Model(db, champs);
+  app.model.kits = await kits();
   app.png = png;
   if (cache) saveLast({ db, png, savedAt: Date.now() });
   if (!location.hash || location.hash === '#/' || location.hash.startsWith('#/load')) location.hash = '#/home';

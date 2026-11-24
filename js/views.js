@@ -1,3 +1,4 @@
+import { SLOTS, SLOT_LABEL, describe, actionFacts } from './kits.js';
 import { ROLES, STAT_LABELS, HIDDEN_LABELS, fmtMoney, pct, wr } from './model.js';
 import { esc, table, bar, statTone, num, link, select, setSort } from './ui.js';
 import { local } from './store.js';
@@ -356,6 +357,19 @@ export function meta(m) {
 }
 
 // ---------- champion ----------
+function kitCard(m, c) {
+  const k = m.kits?.[c]; const ch = m.champs[c];
+  if (!k) return `<div class="card"><h2>Abilities</h2>${ch.skills.map((n, i) => `<div class="kv"><span>${['Ability 1', 'Ability 2', 'Ultimate'][i]}</span><span>${esc(n)}</span></div>`).join('')}</div>`;
+  const row = (slot) => {
+    const name = slot === 'attack' ? '' : k.names?.[slot] || '';
+    const text = slot === 'attack' ? '' : describe(k, slot, esc);
+    return `<div class="kit-row"><div class="kit-head"><span class="muted small">${SLOT_LABEL[slot]}</span> <strong>${esc(name)}</strong> <span class="muted small">${esc(actionFacts(k[slot]))}</span></div>${text ? `<div class="kit-text">${text}</div>` : ''}</div>`;
+  };
+  return `<div class="card"><h2>Abilities</h2>
+    <p class="muted small">The game's own descriptions, with the numbers filled in from its champion data (base values, before balance patches). A ? is a value the data does not spell out.</p>
+    ${SLOTS.map(row).join('')}</div>`;
+}
+
 export function champ(m, r) {
   const c = r.id; const ch = m.champs[c];
   if (!ch) return '<div class="card">Champion not found.</div>';
@@ -391,14 +405,13 @@ export function champ(m, r) {
       ${[['Attack', 'attack'], ['Ability power', 'magic_power'], ['Health', 'hp'], ['Armor', 'defence'], ['Magic resist', 'magic_resistance'], ['Move speed', 'move_speed']]
         .map(([l, k]) => `<div class="kv"><span>${l}</span><span class="num">${st[k]}${gr[k] ? ` <span class="muted">+${gr[k]}/lvl</span>` : ''}</span></div>`).join('')}
       <div class="kv"><span>Attack range</span><span class="num">${ch.range ? ch.range / 1000 : '–'}</span></div>
-      <h2>Abilities</h2>
-      ${ch.skills.map((n, i) => `<div class="kv"><span>${['Ability 1', 'Ability 2', 'Ultimate'][i]}</span><span>${esc(n)}</span></div>`).join('')}
     </div>
     <div class="card">
       <h2>Best with</h2>${best(sy, 1)}
       <h2>Worst with</h2>${best(sy, -1)}
     </div>
   </div>
+  ${kitCard(m, c)}
   <div class="grid two">
     <div class="card"><h2>Strong against</h2><p class="muted small">Win rate when facing these champions.</p>${best(vv, 1)}</div>
     <div class="card"><h2>Weak against</h2>${best(vv, -1)}</div>
