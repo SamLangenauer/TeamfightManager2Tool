@@ -1,0 +1,48 @@
+# TFM2 Analyst
+
+A browser companion for Teamfight Manager 2. Load a save file to browse it, scout teams, study the meta, and get help while you draft in the game.
+
+Everything runs in your browser. The save never leaves your computer, and there is no server.
+
+An unofficial fan tool. Not affiliated with Team Samoyed.
+
+## Using it
+
+1. Open the site (see "Hosting" below), or serve this folder locally with `python3 -m http.server` and open http://localhost:8000.
+2. Click the drop area and pick a save file, or drag it onto the page. Saves live here on Windows:
+   `%APPDATA%\TeamSamoyed\TeamfightManager2\data\save_*.data`
+3. Decoding takes a few seconds. The last save you opened is remembered, so next time you can click "Open it again".
+
+The game files are only read, never changed.
+
+## What's in it
+
+- **Home:** your team's record, standings for your league and a quick link to the draft.
+- **Players:** every athlete with stats, position ratings, potential, contract and champion pool. Filter by region, team, role or free agents, and keep a watchlist.
+- **Teams:** each team's roster, starting five, record, most picked champions, what they ban and what gets banned against them. Use it to scout your next opponent, then jump straight into a draft against them.
+- **Scout:** find players to sign. Filter by role, age, potential, league, free agents or expiring contracts, ranked by current level, room to grow and recent form.
+- **Meta:** pick, ban and win rates per champion for any patch, region or league, plus the best pairs and counters.
+- **Games:** every pro game in the save, with drafts, scores and per-player stats.
+- **Draft:** pick your opponent and your side, then enter each ban and pick as it happens in the game. Every suggestion shows why it scored that way: meta strength, how well it fits your players, synergy with your picks, how it does against their picks, team composition, and what it takes away from them. When it's their turn, it shows what they are likely to do.
+
+## Notes on the data
+
+- Winners are read from the final score of each game. This agrees with series results about 96% of the time.
+- Potential and the other hidden traits are the true values stored in the save, not the scouted estimates the game shows you.
+- Champion data (names, roles, stats and skills) is in `data/champions.tsv`, taken from the game's data file.
+
+## Hosting on GitHub Pages
+
+In the repository, go to Settings, then Pages. Under "Build and deployment", choose "Deploy from a branch", pick `main` and `/ (root)`, and save. The site appears at `https://<user>.github.io/TeamfightManager2Tool/` after a minute or two.
+
+## Development
+
+No build step. Plain ES modules:
+
+- `js/decoder.js` reads the save format (see the comments there).
+- `js/worker.js` decodes in a Web Worker.
+- `js/model.js` builds indexes and statistics.
+- `js/draft.js` is the draft engine; `js/draftview.js` is its page.
+- `js/views.js` holds the other pages.
+
+`node tools/test-decode.mjs <save file>` decodes a save in Node and prints a summary.
