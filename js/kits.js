@@ -1,10 +1,6 @@
-// Champion kits read from the game's champion data (data/kits.json): every
+// Champion kits, read from the user's own game install (see gamefiles.js): every
 // ability's raw parameters plus the game's own English description.
 // Times in the data are in ticks (60 per second); ranges are in 1/1000 units.
-
-export async function loadKits(url = new URL('../data/kits.json', import.meta.url)) {
-  return (await fetch(url)).json();
-}
 
 export const SLOTS = ['attack', 'skill', 'skill2', 'ult'];
 export const SLOT_LABEL = { attack: 'Basic attack', skill: 'Ability 1', skill2: 'Ability 2', ult: 'Ultimate' };

@@ -11,7 +11,8 @@ An unofficial fan tool. Not affiliated with Team Samoyed.
 1. Open the site (see "Hosting" below), or serve this folder locally with `python3 -m http.server` and open http://localhost:8000.
 2. Click the drop area and pick a save file, or drag it onto the page. Saves live here on Windows:
    `%APPDATA%\TeamSamoyed\TeamfightManager2\data\save_*.data`
-3. Decoding takes a few seconds. The last save you opened is remembered, so next time you can click "Open it again".
+3. Optional: choose `bundle.game_data` from the game folder so the app can read every champion's abilities. You only need to do this once per game update.
+4. Decoding takes a few seconds. The last save you opened is remembered, so next time you can click "Open it again".
 
 The game files are only read, never changed.
 
@@ -41,7 +42,7 @@ Each result you record counts as five pro games. The learned weights then scale 
 - Winners are read from the final score of each game. This agrees with series results about 96% of the time.
 - Potential and the other hidden traits are the true values stored in the save, not the scouted estimates the game shows you.
 - Champion data (names, roles, stats and skills) is in `data/champions.tsv`, taken from the game's data file.
-- Every champion's full kit is in `data/kits.json`: each ability's parameters (damage, ratios, cooldowns, ranges, crowd control, shields and heals) and the game's English description. Times there are in ticks (60 a second) and ranges in thousandths. The champion page shows each ability with its numbers filled in.
+- Champion kits are not shipped with the site. Point the app at your own `bundle.game_data` once (load screen or any champion page; in Steam: Manage, then Browse local files). The app reads only the champion data from it, in your browser, and keeps it there until you read it again after a game update. Each champion page then shows every ability with its numbers filled in.
 
 ## Hosting on GitHub Pages
 
@@ -54,7 +55,7 @@ No build step. Plain ES modules:
 - `js/decoder.js` reads the save format (see the comments there).
 - `js/worker.js` decodes in a Web Worker.
 - `js/model.js` builds indexes and statistics.
-- `js/kits.js` loads the champion kits and fills in ability descriptions.
+- `js/gamefiles.js` reads champion kits from the game's `bundle.game_data`; `js/kits.js` fills in ability descriptions.
 - `js/draft.js` is the draft engine; `js/draftview.js` is its page.
 - `js/views.js` holds the other pages.
 
