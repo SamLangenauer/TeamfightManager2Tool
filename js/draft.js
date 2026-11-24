@@ -118,19 +118,30 @@ export class DraftEngine {
 
   compScore(mine, c) { return compScore(this.m.champs, mine, c); }
 
-  available(state) {
+  // Champions still open. With fearless series rules, `side` also drops what it may not pick again.
+  available(state, side) {
     const taken = new Set([...state.us.picks, ...state.them.picks, ...state.us.bans, ...state.them.bans]);
-    return this.m.champIds.filter((c) => !taken.has(c) && this.stats[c]);
+    const lock = side ? this.locked?.[side] : null;
+    return this.m.champIds.filter((c) => !taken.has(c) && this.stats[c] && !(lock && lock.has(c)));
   }
+  canPick(side, c) { return !this.locked?.[side]?.has(c); }
 
   recommendPicks(state, side = 'us', n = 12) {
     const other = side === 'us' ? 'them' : 'us';
-    const rows = this.available(state).map((c) => {
+    const left = this.seriesLeft || 0;
+    const rows = this.available(state, side).map((c) => {
       const r = this.pickScore(state, side, c);
       // deny value: how much the other side would want it
-      const theirs = state[other].picks.length < 5 ? this.pickScore(state, other, c) : null;
+      const theirs = state[other].picks.length < 5 && this.canPick(other, c) ? this.pickScore(state, other, c) : null;
       r.parts.deny = theirs ? Math.max(0, theirs.total) * 0.15 : 0;
-      r.total += r.parts.deny;
+      // hard fearless: taking it also keeps it from them for the rest of the series
+      if (theirs && left && this.fearless === 'hard') r.parts.denySeries = Math.max(0, theirs.total) * 0.05 * left;
+      // fearless: spending a player's best champion now leaves less for later games
+      if (left && this.fearless !== 'off' && r.player != null) {
+        const comfort = this.comfort(r.player, c);
+        if (comfort > 0.5) r.parts.saveForLater = -(comfort - 0.5) * 6 * left;
+      }
+      r.total = Object.values(r.parts).reduce((a, b) => a + b, 0);
       return r;
     });
     rows.sort((a, b) => b.total - a.total);
@@ -140,9 +151,10 @@ export class DraftEngine {
   // Bans for `side`: remove what the other side wants most, minus what we would lose.
   recommendBans(state, side = 'us', n = 12) {
     const other = side === 'us' ? 'them' : 'us';
-    const rows = this.available(state).map((c) => {
+    // no point banning what they may not pick anyway
+    const rows = this.available(state, other).map((c) => {
       const threat = state[other].picks.length < 5 ? this.pickScore(state, other, c) : { total: 0, role: null, player: null };
-      const ours = state[side].picks.length < 5 ? this.pickScore(state, side, c) : { total: 0 };
+      const ours = state[side].picks.length < 5 && this.canPick(side, c) ? this.pickScore(state, side, c) : { total: 0 };
       const t = this.tend[other]; const tg = this.teamGames[other] || 1;
       const parts = {
         threat: threat.total,
