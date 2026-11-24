@@ -1,0 +1,72 @@
+fighter	Fighter	Melee	AD|Tank|CC	23000	70	100	0	950	30	20	1000	0	0	20	0	90	9	4	12	0	0	Charge	Ground Stomp	Cataclysmic Smash	0
+knight	Knight	Tank	AD|Tank|CC|Shield	25000	80	80	0	1100	40	30	1000	0	0	6	0	120	10	5	10	0	0	Taunt	Shield Counter	Guardian Zone	0
+swordman	Swordsman	Melee	AD	25000	60	120	0	900	25	15	1100	0	0	25	0	90	7	3	12	0	0	Sword Wave	Triple Slash	Flash Charge	0
+archer	Archer	Range	AD	70000	60	100	0	900	20	15	900	0	0	15	0	90	7	3	9	0	0	Leaping Shot	Retreating Volley	Arrow Rain	0
+soldier	Sniper	Range	AD	60000	60	100	0	900	20	15	900	0	0	15	0	90	7	3	9	0	0	Deadeye	Three-Round Burst	Piercing Snipe	0
+priest	Priestess	Util	Shield|Heal|Range|AP	60000	90	80	30	900	20	20	1000	0	0	6	15	80	8	4	10	0	0	Holy Ground	Blessed Shield	Heavenly Prayer	0
+pythoness	Pythoness	Util	Heal|Range|AP|Magic	60000	90	80	30	900	20	20	1000	0	0	6	15	100	8	4	10	0	0	Prayer of Healing	Prayer of Exorcism	Open the Spirit Gate	0
+monk	Monk	Util	AP|Heal|Shield|Tank|CC|Magic	23000	90	80	20	1100	40	30	1000	0	0	6	10	120	7	5	10	0	0	Healing Chi	Iron Palm	Chi Barrier	0
+pyromancer	Pyromancer	Magician	AP|Dot|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Fireball	Flame Field	Grand Explosion	0
+ice_mage	Ice Mage	Magician	AP|Dot|CC|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Deep Freeze	Ice Field	Glacial Storm	0
+ninja	Ninja	Assassin	AD	23000	50	120	0	900	25	15	1100	0	0	30	0	80	7	3	14	0	0	Shadow Leap	Assassination Chain	Shadow Strike	0
+magic_knight	Magic Knight	Melee	AD|AP|CC|Magic	26000	50	120	10	900	25	15	1100	0	0	25	5	90	7	3	12	0	0	Arcane Burst	Arcane Core	Spellblade Unleashed	0
+berserker	Berserker	Melee	AD	25000	50	120	0	900	25	15	1100	0	0	20	0	90	7	3	12	0	0	Battle Frenzy	Earthshatter	Wrathful Blow	0
+executioner	Executioner	Melee	AD|CC	25000	70	100	0	1000	30	20	1000	0	0	20	0	90	7	3	12	0	0	Hook and Drag	Hookbrand	Final Sentence	0
+lancer	Lancer	Melee	AD	30000	60	100	0	1000	30	20	1000	0	0	20	0	100	7	4	12	0	0	Spear Sweep	Breakthrough	Pierce the Front	0
+ogre	Ogre	Tank	AD|Tank|CC	28000	70	80	0	1100	40	30	1000	0	0	6	0	120	10	5	10	0	0	Battlehide	Club Smash	Giant Form	0
+dual_blader	Dual Blader	Melee	AD|CC	25000	50	120	0	900	25	15	1100	0	0	25	0	100	7	3	12	0	0	Blade Wave	Judgment	Eviscerate	0
+cavalry_knight	Cavalry	Melee	AD|CC	27000	50	90	0	900	25	15	1200	0	0	20	0	90	7	3	15	0	0	Mounted Charge	Flame Lance	Stampede Formation	0
+gunner	Gunner	Range	AD	50000	40	100	0	900	30	15	900	0	0	20	0	90	7	3	9	0	0	Run and Gun	Focused Fire	Bullet Storm	0
+pole_warrior	Pole Warrior	Melee	AD|CC	30000	50	100	0	1000	30	20	1000	0	0	20	0	100	9	4	12	0	0	Plunge	Whirl	Clash	0
+jiangshi	Jiangshi	Melee	AD|CC|Tank	25000	70	80	0	1100	40	30	1000	0	0	6	0	120	10	5	10	0	0	Jiangshi Legion	Deathblow	Life Drain	0
+gambler	Gambler	Range	AD	70000	60	100	0	900	20	15	900	0	0	20	0	90	7	3	9	0	0	Roll the Dice	Explosive Chip	Golden Temptation	0
+hammerer	Hammerer	Tank	AD|Tank|CC	25000	70	80	0	1100	40	30	1000	0	0	6	0	120	10	5	10	0	0	Hammer Blow	Earth Tremor	Frontline Sweep	0
+demon	Demon	Assassin	AD|CC	23000	50	120	0	900	25	15	1100	0	0	30	0	80	7	3	14	0	0	Hell's Grasp	Archdemon's Descent	Roar of Terror	0
+vampire	Vampire	Magician	AP|Heal|Magic	25000	70	100	10	1000	30	20	1000	0	0	20	5	100	9	4	12	0	0	Sanguine Drain	Blood Eruption	Crimson Rush	0
+spirit_caller	Spirit Caller	Util	AP|Heal|Magic	0	0	80	30	900	20	20	1000	0	0	6	15	100	7	4	10	0	0	Healing Spirit	Withering Spirit	Spirit Rampage	0
+boomerang_hunter	Boomerang Hunter	Range	AD	60000	60	100	0	900	20	15	900	0	0	20	0	90	7	3	9	0	0	Spinning Throw	Triple Boomerang	Ricochet Chain	0
+inquisitor	Inquisitor	Assassin	AD	25000	50	120	0	900	25	15	1100	0	0	30	0	80	7	3	14	0	0	Inquisitor's Charge	Blood Interrogation	Purge the Heretic	0
+shield_bearer	Shield Bearer	Tank	AD|Tank|Shield|CC	25000	70	80	0	1100	40	30	1000	0	0	6	0	120	10	5	10	0	0	Defensive Resonance	Guardian's Oath	Ironwall Taunt	0
+whip_master	Whip Master	Range	AD	40000	60	100	0	900	20	15	900	0	0	20	0	90	7	3	9	0	0	Lash	Whip Sweep	Whip Frenzy	0
+werewolf	Werewolf	Assassin	AD|Heal|CC	25000	50	120	0	900	25	15	1100	0	0	22	0	80	7	3	12	0	0	Savage Claw	Predator's Rush	Frenzied Tempest	0
+dokkaebi	Dokkaebi	Tank	AD|Tank|Shield	25000	60	80	0	1100	40	30	1000	0	0	6	0	100	10	10	10	0	0	Shockwave	Dokkaebi Hide	Dokkaebi Fire	0
+necromancer	Necromancer	Magician	AP	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Summon Ghoul	Frenzy Command	Raise the Dead	0
+bard	Bard	Util	AP	80000	90	80	30	900	20	20	1000	0	0	6	15	100	8	4	10	0	0	Accelerando	Rising Harmony	War Hymn	0
+barrier_magician	Barrier Mage	Util	AP|Shield|Magic	60000	90	80	30	900	20	20	1000	0	0	6	15	80	8	4	10	0	0	Guardian Barrier	Nullifying Barrier	Crushing Sentence	0
+chef	Chef	Util	AP|Heal|Tank|Magic	25000	70	80	10	1000	30	20	1000	0	0	6	15	100	8	4	10	0	0	Cleaver Toss	Hearty Meal	Chef's Elixir	0
+clown	Clown	Assassin	AD	40000	60	100	0	900	20	15	900	0	0	20	0	90	7	3	9	0	0	Jester's Trick	Dagger Barrage	Carnival of Madness	0
+dancer	Dancer	Range	AD	60000	60	100	0	900	20	15	900	0	0	20	0	90	7	3	9	0	0	Chakram Toss	Hunter's Echo	Chakram Dance	0
+dark_mage	Dark Mage	Magician	AP|CC|Magic	60000	90	80	40	900	20	20	1000	0	0	6	20	100	7	3	9	0	0	Dark Bolt	Encroaching Darkness	Chains of Agony	0
+exorcist	Exorcist	Util	AD|Tank	25000	70	100	0	1400	30	20	1000	0	0	20	0	100	8	4	10	0	0	Purification	Divine Grace	Judgment	0
+ghost	Ghost	Assassin	AD	23000	50	120	0	900	25	15	1100	0	0	30	0	80	7	3	14	0	0	Phase Break	Relentless Haunt	Wraith Unleashed	0
+illusionist	Illusionist	Magician	AP|CC|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Beguiling Bolt	Phantom Terror	Duplicate	0
+lightning_mage	Lightning Mage	Magician	AP|CC|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Chain Lightning	Thunderbolt	Lightning Beam	0
+plague_doctor	Plague Doctor	Util	AD|Tank	25000	50	80	0	1000	30	20	1000	0	0	20	0	100	7	4	9	0	0	Stimulant Shot	Ritual Rush	Forbidden Elixir	0
+poison_dart_hunter	Poison Dart Hunter	Range	AD|Dot	50000	60	100	0	900	20	15	900	0	0	15	0	90	7	3	9	0	0	Venom Zone	Toxic Pursuit	Venom Arsenal	0
+shadowmancer	Shadowmancer	Magician	AP|CC|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Touch of Darkness	Shadowburst	Banishing Arrow	0
+taoist	Taoist	Util	AP|CC|Magic	60000	90	80	30	900	20	20	1000	0	0	6	15	100	8	4	10	0	0	Seal Arms	Seal Sorcery	Binding Seal Chain	0
+siege_breaker	Siege Breaker	Melee	AD|Tank	25000	50	100	0	1000	30	20	1000	0	0	20	0	100	9	4	12	0	0	Mace Strike	Wallbreaker	Ruinous Rage	0
+android	Android	Tank	AD|Tank|CC	25000	70	80	0	1100	40	30	1000	0	0	6	0	120	10	5	10	0	0	Shockwave Cannon	Blast Shield	Guardian Transfer	0
+druid	Druid	Magician	AP|Magic	60000	90	80	10	1100	40	30	1000	0	0	6	0	120	10	5	10	0	0	Summon Bear/Heal	Summon Eagle/Attack	Spirit Volley	0
+prisoner	Prisoner	Tank	AD|Tank|CC	28000	70	80	0	1100	40	30	1000	0	0	6	0	120	10	5	10	0	0	Ball and Chain	Terrifying Howl	Prisoner's Drop	0
+bomber	Bomber	Range	AD	60000	90	100	0	900	20	15	900	0	0	20	0	90	7	3	9	0	0	Bomb Toss	Plant Mine	Blockbuster Bomb	0
+voodoo_shaman	Voodoo Shaman	Magician	AP|CC|Magic	60000	90	80	30	900	20	20	1000	0	0	6	15	100	7	3	9	0	0	Cursed Arrow	Curse of Agony	Voodoo Domain	0
+white_mage	White Mage	Magician	AP|Dot|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Radiant Burst	Baptism of Light	Sealing Ray	0
+wind_mage	Wind Mage	Magician	AP|CC|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Summon Vortex	Gale Barrage	Homing Tornado	0
+enchanter	Enchanter	Util	AP	60000	90	80	30	900	20	20	1000	0	0	6	15	100	8	4	10	0	0	Arcane Aim	Armament Awakened	Transcendent Blessing	0
+hitman	Hitman	Assassin	AD|CC	40000	60	100	0	900	20	15	900	0	0	20	0	90	7	3	9	0	0	Three-Round Burst	Shadow Infiltration	Eliminate Target	0
+guardian_spirit	Guardian Spirit	Util	Shield|Heal|Range|AP	60000	90	80	30	900	20	20	1000	0	0	6	15	100	8	4	10	0	0	Soul Mending	Guardian Aura	Summon Sanctuary	0
+hunter	Hunter	Assassin	AD	23000	50	120	0	900	25	15	1100	0	0	30	0	80	7	3	14	0	0	Switch Quarry	Marked Rush	Flash Cut	0
+circus_blade	Circus Blade	Assassin	AD	23000	50	120	0	900	25	15	1100	0	0	30	0	80	7	3	14	0	0	Blade Toss	Zero-G Maneuver	Finale Strike	0
+sand_mage	Sand Mage	Magician	AP|Dot|CC|Magic	60000	60	80	40	900	20	20	900	0	0	6	15	100	7	3	9	0	0	Sandburst	Sand Siphon	Quicksand Mire	1
+alchemist	Alchemist	Magician	AP|Dot|CC|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Venom Flask	Unstable Reagent	Corrosive Miasma	1
+crossbowman	Crossbowman	Range	AD|Range	60000	102	100	0	900	20	15	900	0	0	15	0	90	7	3	9	0	0	Steel Bolt	Recoil Shot	Tracer Mark	1
+nightmare	Nightmare	Assassin	AD	23000	50	120	0	900	25	15	1100	0	0	30	0	80	7	3	14	0	0	Nightmare Shard	Dreamstride	Nightmare's Return	1
+strongman	Strongman	Tank	AD|Tank|CC|Shield	28000	75	75	0	1150	40	30	1000	0	0	6	0	120	10	5	10	0	0	Shoulder Throw	Barbell Swing	Human Cannonball	1
+spellbreaker	Spellbreaker	Melee	AD|AP|CC|Melee	28000	60	100	20	1000	30	30	1000	0	0	18	10	100	9	5	12	0	0	Greatsword Sweep	Shattering Charge	Grand Shatter	1
+astrologer	Astrologer	Magician	AP|CC|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Meteor Fall	Constellation Link	Celestial Alignment	1
+harpooner	Harpooner	Range	AD|CC|Range	60000	60	100	0	900	20	15	900	0	0	15	0	90	7	3	9	0	0	Harpoon Shot	Piercing Shot	Surging Chains	1
+gladiator	Gladiator	Melee	AD|Tank|CC	30000	66	100	0	1050	35	20	1000	0	0	20	0	100	9	4	12	0	0	Cast Net	Trident Flurry	Duel	1
+ferryman	Ferryman	Util	AP|Heal|CC	60000	90	80	30	950	20	20	1000	0	0	6	15	90	8	4	10	0	0	Lifeline Anchor	River of Souls	Ferryboat	1
+bombardier	Bombardier	Range	AD|Range	65000	60	100	0	950	20	15	880	0	0	18	0	90	7	3	9	0	0	Deploy Cannon	Lobbed Shell	Carpet Bombardment	1
+hypnotist	Hypnotist	Magician	AP|CC|Magic	60000	90	80	40	900	20	20	900	0	0	6	20	100	7	3	9	0	0	Pendulum Arc	Suggestion of Sleep	Mass Hypnosis	1
