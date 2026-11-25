@@ -30,11 +30,16 @@ function parseHash() {
 export function render() {
   const r = parseHash();
   nav.querySelectorAll('a').forEach((a) => a.classList.toggle('active', a.dataset.route === r.name));
-  if (!app.model) { main.innerHTML = V.loadScreen(app); nav.hidden = true; return; }
+  if (!app.model) { main.innerHTML = V.loadScreen(app); nav.hidden = true; document.body.dataset.route = 'load'; return; }
   nav.hidden = false;
+  document.body.dataset.route = r.name;
   const view = routes[r.name] || V.home;
   try { main.innerHTML = view(app.model, r, app); }
   catch (e) { console.error(e); main.innerHTML = `<div class="card error">Something went wrong on this page: ${esc(e.message)}</div>`; }
+  // Draft: keep the champion search ready, so the next ban or pick can be typed straight away.
+  if (r.name === 'draft' && matchMedia('(pointer: fine)').matches && (!document.activeElement || document.activeElement === document.body)) {
+    main.querySelector('[name="draft-filter"]')?.focus({ preventScroll: true });
+  }
   document.getElementById('save-name').textContent = app.model.db.meta?.teamName ? `${app.model.db.meta.teamName} · ${app.model.db.date}` : app.model.db.date;
 }
 app.render = render;
@@ -99,6 +104,7 @@ document.addEventListener('click', async (ev) => {
   else if (V.handleAction(a, act, app) || draftEvents(a, act, app) || resultsEvents(a, act, app)) render();
 });
 document.addEventListener('change', (ev) => {
+  if (ev.target.matches('[data-live]')) return; // already handled on input; a late change on blur would render twice
   if (ev.target.id === 'game-input' && ev.target.files[0]) { loadGameFile(ev.target.files[0]); ev.target.value = ''; }
   else if (ev.target.id === 'file-input' && ev.target.files[0]) { loadFile(ev.target.files[0]); ev.target.value = ''; } // reset so the same file can be picked again
   else if (V.handleChange(ev.target, app) || draftEvents('change', ev.target, app) || resultsEvents('change', ev.target, app)) render();
@@ -110,6 +116,9 @@ document.addEventListener('input', (ev) => {
     const el = main.querySelector(`[name="${name}"]`);
     if (el) { el.focus(); try { el.setSelectionRange(pos, pos); } catch {} }
   }
+});
+document.addEventListener('keydown', (ev) => {
+  if (ev.key === 'Enter' && ev.target.matches('[name="draft-filter"]') && draftEvents('enter', ev.target, app)) { ev.preventDefault(); render(); }
 });
 document.addEventListener('dragover', (ev) => { ev.preventDefault(); document.body.classList.add('dragging'); });
 document.addEventListener('dragleave', (ev) => { if (!ev.relatedTarget) document.body.classList.remove('dragging'); });
