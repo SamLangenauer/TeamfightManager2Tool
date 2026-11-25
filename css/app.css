@@ -113,3 +113,7 @@ th.num { text-align: right; }
 .kit-shield { color: #c9a92a; } .kit-hp { color: #3fae4a; } .kit-aspd, .kit-speed { color: inherit; font-weight: 600; }
 .kit-num, .kit-range, .kit-armor, .kit-mr, .kit-em { font-weight: 600; }
 .kit-q { color: var(--muted, #888); cursor: help; }
+.dmgsplit { display: flex; height: 8px; border-radius: 4px; overflow: hidden; margin: 2px 0 10px; background: var(--panel2); }
+.dmgsplit .phys { background: #e07b2a; } .dmgsplit .magic { background: #9a6cf0; }
+ul.threats { margin: 4px 0 0; padding-left: 18px; } ul.threats li { margin: 2px 0; }
+.statrow.wide { grid-template-columns: 1fr 90px minmax(70px, auto); } .statrow.wide > span:last-child { text-align: right; }

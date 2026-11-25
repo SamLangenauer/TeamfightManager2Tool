@@ -60,18 +60,23 @@ export function paramValue(action, name, seen, area = false) {
   return v;
 }
 
+export const actionFor = (kit, slot) => (slot === 'skill' && kit.passive ? { ...kit.passive, ...(kit.skill || {}) } : kit[slot]);
+
+// Description with numbers filled in and the game's colour tags kept as [tag]…[/].
+// A value the data does not hold becomes {?Name}.
+export function fillText(kit, slot) {
+  const text = kit?.text?.[slot]; if (!text) return '';
+  const seen = {}; const action = actionFor(kit, slot);
+  return text.replace(/(within |area with |field with |radius of )?\{(\w+)\}/g, (all, pre, p) => {
+    const v = paramValue(action, p, seen, !!pre);
+    return (pre || '') + (v == null ? `{?${p}}` : String(v));
+  });
+}
+
 // Description as HTML: colour spans the game uses become classes, numbers filled in.
 export function describe(kit, slot, esc) {
-  const text = kit?.text?.[slot]; if (!text) return '';
-  const seen = {};
-  const action = slot === "skill" && kit.passive ? { ...kit.passive, ...(kit.skill || {}) } : kit[slot];
-  let s = esc(text).replace(/(within |area with |field with |radius of )?\{(\w+)\}/g, (all, pre, p) => {
-    const v = paramValue(action, p, seen, !!pre);
-    pre = pre || '';
-    return pre + (v == null ? `<span class="kit-q" title="Not in the data: ${p}">?</span>` : String(v));
-  });
-  s = s.replace(/\[(\w+)\](.*?)\[\/\]/g, (_, c, t) => `<span class="kit-${c}">${t}</span>`);
-  return s;
+  let s = esc(fillText(kit, slot)).replace(/\{\?(\w+)\}/g, (_, p) => `<span class="kit-q" title="Not in the data: ${p}">?</span>`);
+  return s.replace(/\[(\w+)\](.*?)\[\/\]/g, (_, c, t) => `<span class="kit-${c}">${t}</span>`);
 }
 
 // Short facts for an action: cooldown and cast range.
