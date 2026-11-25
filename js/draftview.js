@@ -9,6 +9,7 @@ import { mathBuilds, stepReason, ITEM_LEVEL } from './items.js';
 import { profiles } from './views.js';
 import { compCard, kitReasons } from './compview.js';
 import { compModel, teamComp, missingPieces, rangeMatchups, COMPS } from './comps.js';
+import { askAvailable, askTab, askEvents, setAskContext, afterRender } from './askclaude.js';
 
 let D = local.get('draft', null);
 let engine = null, engineKey = '';
@@ -76,7 +77,7 @@ function stateFrom(steps) {
   return st;
 }
 
-export function draftView(m, r) {
+export function draftView(m, r, app) {
   if (!m.games.length) return '<div class="card">This save has no pro games yet, so there is nothing to base draft advice on.</div>';
   ensure(m, r);
   const steps = sequence(D.bansPer, D.order);
@@ -175,6 +176,7 @@ export function draftView(m, r) {
   };
 
   const partLabel = { patchStrength: 'Strength this patch', proBans: 'Teams ban it this patch', denySeries: 'Gone for them all series', saveForLater: 'Save for later games', meta: 'Meta', fit: 'Player and role fit', synergy: 'Synergy with your picks', counter: 'Against their picks', comp: 'Team composition', habit: 'Team habit', deny: 'Denies them', threat: 'Their pick value', comfortPick: 'Their comfort pick', oftenBannedVsThem: 'Usually banned vs them', ownLoss: 'You lose it too', yours: 'Your results' };
+  const canAsk = askAvailable();
   const recList = recs.map((x, k) => {
     const ch = m.champs[x.c];
     const parts = Object.entries(x.parts).filter(([, v]) => Math.abs(v) >= 0.5).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
@@ -184,6 +186,7 @@ export function draftView(m, r) {
     return `<div class="rec">
       <button class="rec-pick" data-action="draft-pick" data-c="${x.c}">${face(x.c)}${k + 1}. ${esc(ch.name)}</button>
       <span class="muted small">${esc(ch.cat)}${x.role != null ? ` · ${ROLES[x.role]}${p ? ' for ' + esc(p.name) : ''}` : ''}</span>
+      ${canAsk ? `<button class="ask-why ghost small" data-action="ask-why" data-q="${esc(`Why ${ch.name}${step.kind === 'ban' ? ' as a ban' : ''}? Is it the right ${step.kind} here, or is something else better?`)}" title="Ask Claude about this ${step.kind}">Ask</button>` : ''}
       <span class="score">${x.total.toFixed(1)}${after != null ? `<span class="muted small" title="Your win chance if this is picked">${pct(after)} win</span>` : ''}</span>
       <div class="parts">${parts.map(([k2, v]) => `<span class="part ${v >= 0 ? 'pos' : 'neg'}">${partLabel[k2] || k2} ${v >= 0 ? '+' : ''}${v.toFixed(1)}</span>`).join('')}</div>
       ${sides ? (() => { const kr = kitReasons(m, x.c, step.kind, ourTurn ? sides.us : sides.them, ourTurn ? sides.them : sides.us, x.role); return kr.length ? `<div class="parts kit">${kr.map((k3) => `<span class="part kitr ${k3.pos ? 'pos' : 'neg'}">${esc(k3.text)}</span>`).join('')}</div>` : ''; })() : ''}
@@ -290,13 +293,16 @@ export function draftView(m, r) {
     </div>`;
   }
 
-  const tab = step ? (D.tab || 'pick') : (D.tab && D.tab !== 'pick' ? D.tab : 'pick');
+  let tab = step ? (D.tab || 'pick') : (D.tab && D.tab !== 'pick' ? D.tab : 'pick');
+  if (tab === 'ask' && !askAvailable()) tab = 'pick';
   const tabs = [
     ['pick', step ? 'Suggestions' : 'Result and game plan'],
     ['comp', `Compositions${rangeWarn ? ` <span class="warn-dot" title="Range warnings">${rangeWarn}</span>` : ''}`],
     ['lineup', 'Lineups'],
     ['settings', `Settings${D.fearless !== 'off' ? ' and series' : ''}`],
   ];
+  if (canAsk) tabs.splice(1, 0, ['ask', 'Ask Claude']);
+  setAskContext({ app, m, D, engine, st, steps, cur, step, ourTurn, recs, assigned, out, L, sides, partLabel, label, predictFor });
   const hint = !step ? 'Record the result once the game is over. The game plan below has builds and tactics.'
     : ourTurn ? (step.kind === 'ban' ? 'Bans that take away what they want most, minus what you would lose.' : 'Picks scored for your lineup and this draft.')
       : (step.kind === 'ban' ? 'What they are likely to ban. Enter what they actually ban.' : 'What they are likely to pick. Enter what they actually take.');
@@ -311,6 +317,9 @@ export function draftView(m, r) {
           <div class="cgrid">${grid}</div>
         </div>
       </div>` : `<div class="card result">${resultBox()}</div>${gamePlan()}`;
+  } else if (tab === 'ask') {
+    body = askTab({ step });
+    queueMicrotask(afterRender);
   } else if (tab === 'comp') {
     body = sides ? (compCard(m, sides) || '<p class="muted">Compositions fill in once champions are picked.</p>') : '<p class="muted">Compositions need champion kits. Point the app at your game files on the load screen.</p>';
   } else if (tab === 'lineup') {
@@ -364,6 +373,8 @@ function currentTactics(m, st) {
 
 export function draftEvents(a, el, app) {
   if (!D) return false;
+  if (a === 'ask-why') { D.tab = 'ask'; save(); }
+  if (a.startsWith('ask-')) return askEvents(a, el);
   const steps = sequence(D.bansPer, D.order);
   if (a === 'draft-pick') { if (D.entries.length < steps.length && !D.entries.includes(el.dataset.c)) { D.entries.push(el.dataset.c); D.filter = ''; if (D.entries.length === steps.length) D.tab = 'pick'; save(); } return true; }
   if (a === 'draft-tab') { D.tab = el.dataset.tab; save(); return true; }

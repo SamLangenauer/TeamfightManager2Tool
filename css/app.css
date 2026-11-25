@@ -12,6 +12,12 @@
     color-scheme: light;
   }
 }
+/* an explicit light choice (set by the Claude artifact viewer) wins over a dark system setting */
+:root[data-theme="light"] {
+  --bg: #f6f8fa; --panel: #ffffff; --panel2: #f0f3f6; --line: #d8dee4; --text: #1f2328; --muted: #59636e;
+  --tank: #475569; --melee: #b45309; --range: #0e7490; --magician: #6d28d9; --assassin: #be123c; --util: #15803d;
+  color-scheme: light;
+}
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 a { color: var(--accent2); text-decoration: none; } a:hover { text-decoration: underline; }
@@ -242,3 +248,22 @@ td span.pos { color: var(--win); } td span.neg { color: var(--loss); }
 .dr-pool .cgrid:has(.pt) { grid-template-columns: repeat(auto-fill, minmax(98px, 1fr)); }
 .dr-pool .gchamp span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .dr-body .grid.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+
+/* Ask Claude (only when the app runs as a Claude artifact) */
+.rec:has(.ask-why) { grid-template-columns: auto 1fr auto auto; }
+.rec .ask-why { padding: 1px 7px; }
+.ask { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+.ask-log { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 120px; max-height: 60vh; padding-right: 2px; }
+.ask-msg { border-radius: 10px; padding: 7px 10px; max-width: 92%; line-height: 1.45; }
+.ask-msg p { margin: 0 0 4px; } .ask-msg p:last-child { margin-bottom: 0; }
+.ask-msg ul { margin: 2px 0 4px; padding-left: 18px; }
+.ask-msg.user { align-self: flex-end; background: var(--accent); color: #fff; white-space: pre-wrap; }
+.ask-msg.assistant { align-self: flex-start; background: var(--panel2); border: 1px solid var(--line); }
+.ask textarea { width: 100%; resize: none; font: inherit; background: var(--panel2); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; flex: none; }
+.ask-bar { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+.ask-bar button.primary { border-color: var(--accent); font-weight: 600; }
+@media (min-width: 1001px) and (min-height: 560px) {
+  .dr-body:has(> .ask) { overflow: hidden; display: flex; }
+  .ask { flex: 1; height: 100%; }
+  .ask-log { flex: 1; max-height: none; }
+}
