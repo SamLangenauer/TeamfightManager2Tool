@@ -6,6 +6,8 @@ import { learner, results } from './learn.js';
 import { recommendBuilds, recommendTactics, TACTICS, LINES, damageBucket, BUCKETS, planStats } from './gameplan.js';
 import { mathBuilds, stepReason, ITEM_LEVEL } from './items.js';
 import { profiles } from './views.js';
+import { compCard, kitReasons } from './compview.js';
+import { compModel, teamComp } from './comps.js';
 
 let D = local.get('draft', null);
 let engine = null, engineKey = '';
@@ -96,6 +98,15 @@ export function draftView(m, r) {
   const recorded = D.recorded ? results.all().find((x) => x.id === D.recorded) : null;
   const assigned = { us: engine.assign('us', st.us.picks), them: engine.assign('them', st.them.picks) };
 
+  const S = planStats(m);
+  const sideInfo = (who) => {
+    const byRole = [null, null, null, null, null];
+    st[who].picks.forEach((c, i) => { const r = assigned[who].roles[i]; if (r != null) byRole[r] = c; });
+    const ls = st[who].picks.map((c) => S.champ[c]?.late ?? 0);
+    return { picks: st[who].picks, byRole, late: ls.length ? ls.reduce((a, b) => a + b, 0) / ls.length : 0 };
+  };
+  const sides = m.kits ? { us: sideInfo('us'), them: sideInfo('them') } : null;
+
   const board = (who) => {
     const sideLetter = who === 'us' ? D.side : D.side === 'A' ? 'B' : 'A';
     const teamId = who === 'us' ? D.us : D.opp;
@@ -139,6 +150,7 @@ export function draftView(m, r) {
       <span class="muted small">${esc(ch.cat)}${x.role != null ? ` · ${ROLES[x.role]}${p ? ' for ' + esc(p.name) : ''}` : ''}</span>
       <span class="score">${x.total.toFixed(1)}${after != null ? `<span class="muted small" title="Your win chance if this is picked">${pct(after)} win</span>` : ''}</span>
       <div class="parts">${parts.map(([k2, v]) => `<span class="part ${v >= 0 ? 'pos' : 'neg'}">${partLabel[k2] || k2} ${v >= 0 ? '+' : ''}${v.toFixed(1)}</span>`).join('')}</div>
+      ${sides ? (() => { const kr = kitReasons(m, x.c, step.kind, ourTurn ? sides.us : sides.them, ourTurn ? sides.them : sides.us, x.role); return kr.length ? `<div class="parts kit">${kr.map((k3) => `<span class="part kitr ${k3.pos ? 'pos' : 'neg'}">${esc(k3.text)}</span>`).join('')}</div>` : ''; })() : ''}
     </div>`;
   }).join('');
 
@@ -158,7 +170,8 @@ export function draftView(m, r) {
     const plan = recommendTactics(m, us, them, results.all().filter((h) => h.us === D.us));
     const slotChips = (slots) => slots.map((v, k) => `<span class="bslot line-${LINES[v]?.key}" title="Builds into ${esc(LINES[v]?.items[4] || '')}"><span class="muted small">${k + 1}</span> ${esc(LINES[v]?.name || '?')}</span>`).join('');
     const mathOn = !!(m.kits && m.items);
-    const ctx = mathOn ? { kits: m.kits, items: m.items, profiles: profiles(m) } : null;
+    const enemyTc = sides && compModel(m) ? teamComp(compModel(m), st.them.picks) : null;
+    const ctx = mathOn ? { kits: m.kits, items: m.items, profiles: profiles(m), enemyComp: enemyTc?.scores } : null;
     // pro record for a set of lines in any order, as a second opinion
     const proRecord = (c, lines) => {
       const x = planStats(m).champ[c]; if (!x) return null;
@@ -174,7 +187,7 @@ export function draftView(m, r) {
       const mb = ctx ? mathBuilds(ctx, c, st.them.picks) : null;
       if (mb && !threatNote) {
         const t = mb.threat;
-        threatNote = `Their draft deals about ${pct(t.physShare)} physical and ${pct(t.magicShare)} magic damage, ${pct(t.aaShare)} of it from basic attacks${t.divers ? `, with ${t.divers} ${t.divers > 1 ? 'champions that dive' : 'champion that dives'} the backline` : ''}.`;
+        threatNote = `Their draft deals about ${pct(t.physShare)} physical and ${pct(t.magicShare)} magic damage, ${pct(t.aaShare)} of it from basic attacks${t.divers ? `, with ${t.divers} ${t.divers > 1 ? 'champions that dive' : 'champion that dives'} the backline` : ''}.${enemyTc && enemyTc.scores.poke > 0.5 ? ' They are a poke draft, so builds lean a little toward health.' : ''}${enemyTc && enemyTc.scores.pick > 0.5 ? ' They are a pick draft, so backline builds lean toward survival.' : ''}`;
       }
       if (mb?.builds.length) {
         const best = mb.builds[0]; const pr = proRecord(c, best.slots);
@@ -267,6 +280,7 @@ export function draftView(m, r) {
     </div>
     ${board('them')}
   </div>
+  ${sides ? compCard(m, sides) : ''}
   ${gamePlan()}
   <div class="grid two">
     <div class="card"><h2>Your lineup</h2>${lineupEditor('us')}</div>

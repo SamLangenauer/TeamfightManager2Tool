@@ -48,9 +48,9 @@ export class Model {
         g.players[side].forEach((p, i) => {
           if (!p) return;
           const a = athletes[p.aid]; if (!a) return;
-          const s = g.sum[side];
+          const s = g.sum[side]; const j = p.slot < 5 ? p.slot : i; // the per-game summary is listed by role, not by pick
           a.log.push({ g, side, champ: g.picks[side][i], role: p.slot, win: g.winner === side,
-            k: s.k[i], d: s.d[i], gold: s.gold[i], cs: s.cs[i], dmg: s.dmg[i], team: g.teams[side], opp: g.teams[1 - side] });
+            k: s.k[j], d: s.d[j], gold: s.gold[j], cs: s.cs[j], dmg: s.dmg[j], team: g.teams[side], opp: g.teams[1 - side] });
         });
       }
     }
@@ -85,7 +85,8 @@ export class Model {
           const x = s[c]; if (!x) return;
           x.picks++; if (g.winner === side) x.wins++;
           const p = g.players[side][i]; if (p) x.roles[p.slot]++;
-          const sm = g.sum[side]; x.k += sm.k[i]; x.d += sm.d[i]; x.dmg += sm.dmg[i]; x.gold += sm.gold[i];
+          const sm = g.sum[side]; const j = p && p.slot < 5 ? p.slot : i; // summary is listed by role
+          x.k += sm.k[j]; x.d += sm.d[j]; x.dmg += sm.dmg[j]; x.gold += sm.gold[j];
         });
         for (const c of g.bans[side]) if (s[c]) s[c].bans++;
       }

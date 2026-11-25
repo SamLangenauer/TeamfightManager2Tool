@@ -7,6 +7,7 @@
 // area damage, range, dive and side-lane strength) instead of its tags.
 import { wr, ROLES } from './model.js';
 import { profilesFor } from './profile.js';
+import { compModel, teamComp, rangeMatchups, COMPS } from './comps.js';
 
 // Item lines in the game's order. A build slot is stored as line * 5 + tier.
 export const LINES = [
@@ -182,12 +183,28 @@ export function recommendTactics(m, us, them, history = []) {
   else if (fightUs >= fightThem && scale <= 0.01) pick('defense', 'battle', 'Your teamfight is at least as strong, so force fights when they split up.');
   else pick('defense', 'gather', scale > 0.01 ? 'You outscale them, so defend safely and wait.' : 'Their teamfight is stronger, so defend together.');
 
+  // composition: what the draft is built to do sets the big plays
+  const cm = kit ? compModel(m) : null;
+  const tu = cm ? teamComp(cm, list(us)) : null, tt = cm ? teamComp(cm, list(them)) : null;
+  if (tu && tu.scores[tu.main] > 0.3) {
+    const comp = COMPS[tu.main].name.toLowerCase(); const why = (t) => `Your draft is built for ${comp}: ${t}`;
+    if (tu.main === 'dive') { pick('tower_press', 'dive', why('dive towers when your engage is up.')); pick('object_buildup', 'gather', why('group so the dive has follow-up.')); }
+    if (tu.main === 'poke') { pick('tower_press', 'poking', why('chip towers from range and do not walk into them.')); pick('defense', 'gather', why('defend together and poke them off.')); pick('object_finish', 'kill_priority', why('take the objective while they are worn down.')); }
+    if (tu.main === 'pick') { pick('object_buildup', 'flexible', why('look for a catch before each objective.')); pick('defense', 'battle', why('punish anyone who walks in alone.')); }
+    if (tu.main === 'protect') { pick('object_buildup', 'gather', why('stay grouped around your carry.')); pick('morgard_use', 'gather', why('keep all five together so the carry stays protected.')); pick('tower_press', 'poking', why('let the carry hit towers from safety instead of diving.')); }
+    if (tu.main === 'teamfight') { pick('object_buildup', 'gather', why('force five-on-five fights around objectives.')); pick('object_finish', 'battle_priority', why('fight first, then take the objective.')); pick('defense', 'battle', why('take the fight when they come.')); }
+    if (tu.main === 'split' && duelists.length) { pick('object_buildup', 'split', why(`${name(duelists[0])} pulls them to a side lane.`)); pick('morgard_use', 'split14', why(`${name(duelists[0])} holds a side lane while four group.`)); }
+  }
+  const rm = cm ? rangeMatchups(cm, us.byRole, them.byRole) : null;
+  if (rm && rm.team > 0.2) { pick('tower_press', 'dive', 'They out-reach you and you would lose a long siege, so commit when you go in.'); }
+  if (rm && rm.team < -0.2 && out.tower_press.choice !== 'poking') pick('tower_press', 'poking', 'You out-reach them and they have little engage, so siege from range.');
+
   // your own record with each choice
   for (const t of TACTICS) {
     const rows = history.filter((h) => h.tactics && h.tactics[t.key] === out[t.key].choice && h.won != null);
     out[t.key].record = rows.length ? { g: rows.length, w: rows.filter((h) => h.won).length } : null;
   }
-  return { tactics: out, traits: { top, jg, mid, bot, lateUs, lateThem, fightUs, fightThem, poke, dive, theirDivers, ourCarries, kit } };
+  return { tactics: out, traits: { top, jg, mid, bot, lateUs, lateThem, fightUs, fightThem, poke, dive, theirDivers, ourCarries, kit, compUs: tu, compThem: tt, range: rm } };
 }
 
 // slots here are item lines (0..5), as returned by recommendBuilds
