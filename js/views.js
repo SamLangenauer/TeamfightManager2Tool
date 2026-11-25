@@ -5,6 +5,7 @@ import { allCombos, LINKS } from './combos.js';
 import { EFFECTS, GROUPS, effectLabel } from './effects.js';
 import { ROLES, STAT_LABELS, HIDDEN_LABELS, fmtMoney, pct, wr } from './model.js';
 import { esc, table, bar, statTone, num, link, select, setSort } from './ui.js';
+import { face } from './portraits.js';
 import { local } from './store.js';
 
 // ---------- shared filter state ----------
@@ -32,7 +33,7 @@ export function handleAction(a, el) {
   return false;
 }
 
-const champChip = (m, c, extra = '') => `<a class="chip cat-${(m.champs[c]?.cat || 'x').toLowerCase()}" href="#/champ/${c}" title="${esc(m.champs[c]?.cat || '')}">${esc(m.champName(c))}${extra}</a>`;
+const champChip = (m, c, extra = '') => `<a class="chip cat-${(m.champs[c]?.cat || 'x').toLowerCase()}" href="#/champ/${c}" title="${esc(m.champs[c]?.cat || '')}">${face(c)}${esc(m.champName(c))}${extra}</a>`;
 const teamLink = (m, id) => (id >= 0 ? link(`#/team/${id}`, m.teamName(id)) : '<span class="muted">Free agent</span>');
 const playerLink = (m, a) => (a ? link(`#/player/${a.id}`, a.name) : '–');
 const patchOptions = (m) => [['all', 'All patches'], ...m.patches.map((p) => [p, `Patch ${p}`]), ['latest', 'Latest patch only']];
@@ -368,10 +369,11 @@ export function meta(m) {
 // Champion kits are read from the user's own install, never shipped with the site.
 export function gameFilesCard(app, why = '') {
   const g = app.game;
-  const where = `<span class="muted small">In Steam, right-click Teamfight Manager 2, choose Manage, then Browse local files. The file is <code>bundle.game_data</code> in that folder. Only the champion data is read from it, in your browser, and kept here so you pick it once per game update.</span>`;
+  const where = `<span class="muted small">In Steam, right-click Teamfight Manager 2, choose Manage, then Browse local files. The file is <code>bundle.game_data</code> in that folder. Only the champion data and champion pictures are read from it, in your browser, and kept here so you pick it once per game update.</span>`;
   return `<div class="card"><h2>Champion kits</h2>
-    ${g ? `<p class="small">Read from your game files on ${new Date(g.readAt).toLocaleDateString()}: ${Object.keys(g.kits).length} champions.</p>
-      <div class="row gap"><button class="ghost small" data-action="pick-game">Read them again after a game update</button></div>`
+    ${g ? `<p class="small">Read from your game files on ${new Date(g.readAt).toLocaleDateString()}: ${Object.keys(g.kits).length} champions${g.portraits ? `, ${Object.keys(g.portraits).length} champion pictures` : ''}.</p>
+      ${g.portraits ? '' : '<p class="small">Pick the file once more to add champion pictures to the draft, meta and other pages.</p>'}
+      <div class="row gap"><button class="ghost small" data-action="pick-game">${g.portraits ? 'Read them again after a game update' : 'Read them again to add pictures'}</button></div>`
     : `<p class="small">${why || 'Ability details come from your own copy of the game.'}</p>
       <div class="drop" data-action="pick-game"><strong>Choose bundle.game_data from the game folder</strong>${where}</div>`}
     <div id="game-status" class="status">${esc(app.gameStatus || '')}</div></div>`;
@@ -462,7 +464,7 @@ export function champ(m, r, app) {
     .filter((x) => x.g > 0 || x.prof >= 300);
   const st = ch.stat, gr = ch.growth;
   return `
-  <h1>${esc(ch.name)} <span class="muted small">${esc(ch.cat)} · ${ch.tags.map(esc).join(', ')}${ch.mod ? ' · added in an update' : ''}</span></h1>
+  <h1 class="champ-title">${face(c, 'big')}${esc(ch.name)} <span class="muted small">${esc(ch.cat)} · ${ch.tags.map(esc).join(', ')}${ch.mod ? ' · added in an update' : ''}</span></h1>
   <div class="filters">${select('patch', patchOptions(m), f.patch, 'data-filter="champ"')}</div>
   <div class="grid three">
     <div class="card">

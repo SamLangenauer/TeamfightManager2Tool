@@ -1,3 +1,5 @@
+import { cutPortraits } from './portraits.js';
+
 // Reads champion kits from the game's own bundle.game_data, picked by the user from
 // their install. Nothing from the game is shipped with this site; what is read stays in
 // this browser (IndexedDB) so it only has to be picked once per game update.
@@ -11,7 +13,10 @@ const WANT = {
   items: 'item_setting asset/base/setting/item_setting',
 };
 
-async function readEntries(file, wanted, onProgress) {
+// Champion sprite sheets (PNG) and their frame lists (JSON) sit next to each other.
+const SPRITE = /^asset\/base\/aseprite_resources\/champions\/[^/]+#(sheet|anim)$/;
+
+async function readEntries(file, wanted, onProgress, sprites) {
   const keys = new Set(Object.values(wanted));
   const found = {};
   const dec = new TextDecoder();
@@ -19,7 +24,7 @@ async function readEntries(file, wanted, onProgress) {
   const count = await u32(0);
   if (!count || count > 100000) throw new Error('this does not look like bundle.game_data');
   let pos = 4;
-  for (let i = 0; i < count && keys.size; i++) {
+  for (let i = 0; i < count && (keys.size || sprites); i++) {
     // type and path are short, so one read covers both headers
     const head = new DataView(await file.slice(pos, pos + 1024).arrayBuffer());
     const tl = head.getUint32(0, true);
@@ -33,6 +38,7 @@ async function readEntries(file, wanted, onProgress) {
     const start = clPos + 4;
     const key = type + ' ' + path;
     if (keys.has(key)) { found[key] = await file.slice(start, start + cl).text(); keys.delete(key); }
+    else if (sprites && SPRITE.test(path)) sprites[path] = file.slice(start, start + cl); // a lazy slice, read only if used
     pos = start + cl;
     if (onProgress && i % 100 === 0) onProgress(pos / file.size);
   }
@@ -109,7 +115,24 @@ export function buildItems(itemText) {
   return lines;
 }
 
+// Which sprite each champion uses: mod champions name it, base ones use their id.
+function spritePaths(sheetText) {
+  const sheet = JSON.parse(sheetText.replace(/^\uFEFF/, ''));
+  const out = {};
+  for (const [k, v] of Object.entries(sheet)) if (k !== 'mod_champions' && v && typeof v === 'object') out[k] = v.sprite || 'asset/base/aseprite_resources/champions/' + k;
+  for (const m of sheet.mod_champions || []) if (m?.id) out[m.id] = m.sprite || 'asset/base/aseprite_resources/champions/' + m.id;
+  return out;
+}
+
 export async function readGameFile(file, onProgress) {
-  const e = await readEntries(file, WANT, onProgress);
-  return { kits: buildKits(e.sheet, e.text), items: buildItems(e.items), size: file.size, modified: file.lastModified, readAt: Date.now() };
+  const sprites = {};
+  const e = await readEntries(file, WANT, (f) => onProgress?.(f * 0.9), sprites);
+  const sources = {};
+  for (const [id, base] of Object.entries(spritePaths(e.sheet))) {
+    const sheet = sprites[base + '#sheet'], anim = sprites[base + '#anim'];
+    if (sheet && anim) sources[id] = { sheet: new Blob([sheet], { type: 'image/png' }), anim: await anim.text() };
+  }
+  let portraits = {};
+  try { portraits = await cutPortraits(sources, (f) => onProgress?.(0.9 + f * 0.1)); } catch (err) { console.warn('Could not cut champion pictures', err); }
+  return { kits: buildKits(e.sheet, e.text), items: buildItems(e.items), portraits, size: file.size, modified: file.lastModified, readAt: Date.now() };
 }
