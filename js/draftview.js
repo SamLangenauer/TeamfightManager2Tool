@@ -1,6 +1,7 @@
 import { DraftEngine } from './draft.js';
 import { ROLES, pct } from './model.js';
 import { esc, select } from './ui.js';
+import { face } from './portraits.js';
 import { local } from './store.js';
 import { learner, results } from './learn.js';
 import { recommendBuilds, recommendTactics, TACTICS, LINES, damageBucket, BUCKETS, planStats } from './gameplan.js';
@@ -121,7 +122,7 @@ export function draftView(m, r) {
       const roleSel = role != null ? `<select name="role-${who}-${c}" data-draft="role" class="role-pick ${locked ? 'locked' : ''}" title="${locked ? 'Role you set' : 'Guessed role. Change it once you see where they play.'}">
           <option value="">${locked ? 'Guess' : ROLES[role] + ' (guess)'}</option>${ROLES.map((rn, ri) => `<option value="${ri}" ${locked && D.roles[who][c] === ri ? 'selected' : ''}>${rn}</option>`).join('')}</select>` : '';
       return `<div class="slot ${kind} ${i === cur ? 'current' : ''} ${c ? 'filled' : ''}">
-        <span class="slot-main" data-action="draft-goto" data-step="${i}" title="Click to redo from here">${c ? `<span class="chip cat-${(m.champs[c]?.cat || '').toLowerCase()}">${esc(m.champName(c))}</span>` : `<span class="muted">${i === cur ? 'now' : '–'}</span>`}</span>
+        <span class="slot-main" data-action="draft-goto" data-step="${i}" title="Click to redo from here">${c ? `<span class="chip cat-${(m.champs[c]?.cat || '').toLowerCase()}">${face(c)}${esc(m.champName(c))}</span>` : `<span class="muted">${i === cur ? 'now' : '–'}</span>`}</span>
         ${roleSel}${aid != null ? `<span class="muted small">${esc(m.athletes[aid]?.name || '')}</span>` : ''}
       </div>`;
     };
@@ -146,7 +147,7 @@ export function draftView(m, r) {
     const p = x.player != null ? m.athletes[step.kind === 'ban' ? engine.lineup[ourTurn ? 'them' : 'us'][x.role] : engine.lineup[who][x.role]] : null;
     const after = step.kind === 'pick' ? (ourTurn ? predictFor([...st.us.picks, x.c], st.them.picks) : predictFor(st.us.picks, [...st.them.picks, x.c])) : null;
     return `<div class="rec">
-      <button class="rec-pick" data-action="draft-pick" data-c="${x.c}">${k + 1}. ${esc(ch.name)}</button>
+      <button class="rec-pick" data-action="draft-pick" data-c="${x.c}">${face(x.c)}${k + 1}. ${esc(ch.name)}</button>
       <span class="muted small">${esc(ch.cat)}${x.role != null ? ` · ${ROLES[x.role]}${p ? ' for ' + esc(p.name) : ''}` : ''}</span>
       <span class="score">${x.total.toFixed(1)}${after != null ? `<span class="muted small" title="Your win chance if this is picked">${pct(after)} win</span>` : ''}</span>
       <div class="parts">${parts.map(([k2, v]) => `<span class="part ${v >= 0 ? 'pos' : 'neg'}">${partLabel[k2] || k2} ${v >= 0 ? '+' : ''}${v.toFixed(1)}</span>`).join('')}</div>
@@ -194,7 +195,7 @@ export function draftView(m, r) {
         const alt = mb.builds.slice(1).map((x) => { const q = proRecord(c, x.slots); return `<div class="alt">${slotChips(x.slots)}${q?.g ? ` <span class="muted small">pros ${q.w}–${q.g - q.w}</span>` : ''}</div>`; }).join('');
         const why = best.steps.map((st2, k) => `<li>${k + 1}. ${esc(stepReason(st2, mb.threat))}</li>`).join('');
         const common = b.common ? b.common.key.split('-').map((v) => LINES[v].name).join(' → ') : null;
-        return `<tr><td>${ROLES[r]}</td><td>${aid != null ? esc(m.athletes[aid]?.name || '') : '<span class="muted">–</span>'}</td><td><a href="#/champ/${c}">${esc(m.champName(c))}</a></td>
+        return `<tr><td>${ROLES[r]}</td><td>${aid != null ? esc(m.athletes[aid]?.name || '') : '<span class="muted">–</span>'}</td><td><a href="#/champ/${c}" class="with-pt">${face(c)}${esc(m.champName(c))}</a></td>
           <td><div>${slotChips(best.slots)}</div>
           <details><summary class="small">Why this order</summary><ul class="why">${why}</ul></details>
           <div class="muted small">Pros: ${pr?.g ? `won ${pr.w} of ${pr.g} games with these four items` : 'never used this set, so there is no game record to check it against'}${common ? `; their most common build is ${esc(common)}` : ''}.</div>
@@ -202,7 +203,7 @@ export function draftView(m, r) {
       }
       const best = b.builds[0];
       const alt = b.builds.slice(1).map((x) => `<div class="alt">${slotChips(x.slots)} <span class="muted small">${pct((x.w + 5) / (x.g + 10))} in ${x.g}</span></div>`).join('');
-      return `<tr><td>${ROLES[r]}</td><td>${aid != null ? esc(m.athletes[aid]?.name || '') : '<span class="muted">–</span>'}</td><td><a href="#/champ/${c}">${esc(m.champName(c))}</a></td>
+      return `<tr><td>${ROLES[r]}</td><td>${aid != null ? esc(m.athletes[aid]?.name || '') : '<span class="muted">–</span>'}</td><td><a href="#/champ/${c}" class="with-pt">${face(c)}${esc(m.champName(c))}</a></td>
         <td>${best ? `<div>${slotChips(best.slots)}</div><div class="muted small">Pros won ${best.w} of ${best.g} games with it${b.byRole ? ` as ${ROLES[r]}` : ''}${best.ge ? `, and ${best.we} of ${best.ge} in any role against ${b.bucketName} damage like theirs` : ''}.${b.common && b.common.key !== best.key ? ` Most common: ${esc(b.common.key.split('-').map((v) => LINES[v].name).join(' → '))}.` : ''}</div>${alt ? `<details><summary class="small">Other good builds</summary>${alt}</details>` : ''}` : '<span class="muted">Not enough pro games with this champion.</span>'}</td></tr>`;
     }).join('');
     const buildIntro = mathOn
@@ -233,13 +234,13 @@ export function draftView(m, r) {
   const q = (D.filter || '').toLowerCase();
   const grid = m.champIds.filter((c) => !q || m.champName(c).toLowerCase().includes(q))
     .sort((a, b) => m.champName(a).localeCompare(m.champName(b)))
-    .map((c) => `<button class="gchamp cat-${(m.champs[c].cat || '').toLowerCase()} ${engine.locked.us.has(c) || engine.locked.them.has(c) ? 'used' : ''}" data-action="draft-pick" data-c="${c}" ${taken.has(c) || !step || lockedNow(c) ? 'disabled' : ''} ${lockedNow(c) ? 'title="Used earlier in the series"' : ''}>${esc(m.champName(c))}</button>`).join('');
+    .map((c) => `<button class="gchamp cat-${(m.champs[c].cat || '').toLowerCase()} ${engine.locked.us.has(c) || engine.locked.them.has(c) ? 'used' : ''}" data-action="draft-pick" data-c="${c}" ${taken.has(c) || !step || lockedNow(c) ? 'disabled' : ''} ${lockedNow(c) ? 'title="Used earlier in the series"' : ''}>${face(c, 'full')}<span>${esc(m.champName(c))}</span></button>`).join('');
 
   function seriesBar() {
     if (D.fearless === 'off') return '';
     const u = usedInSeries();
     const n = D.series.games.length + 1;
-    const chip = (c, who) => `<span class="chip cat-${(m.champs[c]?.cat || '').toLowerCase()}">${esc(m.champName(c))}<button class="x" data-action="series-remove" data-c="${c}" data-who="${who}" title="Remove">×</button></span>`;
+    const chip = (c, who) => `<span class="chip cat-${(m.champs[c]?.cat || '').toLowerCase()}">${face(c)}${esc(m.champName(c))}<button class="x" data-action="series-remove" data-c="${c}" data-who="${who}" title="Remove">×</button></span>`;
     const champOpts = [['', 'Add a champion used earlier…'], ...m.champIds.slice().sort((a, b) => m.champName(a).localeCompare(m.champName(b))).map((c) => [c, m.champName(c)])];
     return `<div class="card series">
       <h2>Fearless series · ${n <= D.series.bestOf ? `game ${n} of ${D.series.bestOf}` : `past best of ${D.series.bestOf}, start a new series when this one is over`} <span class="muted small">${D.fearless === 'hard' ? 'nobody can pick a champion used earlier in the series' : 'each team cannot pick a champion it used earlier in the series'}</span></h2>
