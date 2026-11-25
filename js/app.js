@@ -47,7 +47,7 @@ async function loadGameFile(file) {
   try {
     const g = await readGameFile(file, (f) => { app.gameStatus = `Reading champion data from the game files… ${Math.round(f * 100)}%`; const el = document.getElementById('game-status'); if (el) el.textContent = app.gameStatus; });
     app.game = g; app.gameStatus = null;
-    if (app.model) app.model.kits = g.kits;
+    if (app.model) { app.model.kits = g.kits; app.model.items = g.items || null; }
     await saveKits(g);
   } catch (e) { app.gameStatus = 'Could not read that file: ' + e.message + '. Pick bundle.game_data from the game folder.'; }
   render();
@@ -56,7 +56,7 @@ async function loadGameFile(file) {
 async function useDb(db, png, cache = true) {
   const champs = parseChampions(await champText());
   app.model = new Model(db, champs);
-  app.model.kits = app.game?.kits || null;
+  app.model.kits = app.game?.kits || null; app.model.items = app.game?.items || null;
   app.png = png;
   if (cache) saveLast({ db, png, savedAt: Date.now() });
   if (!location.hash || location.hash === '#/' || location.hash.startsWith('#/load')) location.hash = '#/home';
