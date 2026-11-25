@@ -10,7 +10,7 @@
 //            abilities, against armor, magic resist and the items' damage reductions.
 // score = a·ln(offense) + (1 − a)·ln(survival), where a depends on how the champion plays
 // (a frontline values survival, a backline carry values damage) and shifts toward survival
-// when the enemy has divers that reach the backline. Slots are then ordered greedily: each
+// when the enemy has divers that reach the backline or a pick draft, and a little for everyone against poke. Slots are then ordered greedily: each
 // slot takes the item that adds the most at that point.
 import { profileOf } from './profile.js';
 
@@ -75,24 +75,32 @@ function evaluate(kit, prof, items, lines, threat, a) {
   return { score: a * Math.log(Math.max(1, offense)) + (1 - a) * Math.log(Math.max(1, survival)), offense, survival, through };
 }
 
-export function buildScore({ kits, items, profiles }, c, lines, threat) {
-  const prof = profiles?.[c];
+// How much a champion's build leans to damage (a) rather than survival (1 - a). Against divers or a
+// pick draft, backline champions lean to survival; against a poke draft, everyone does a little.
+function weightFor(prof, threat, enemyComp) {
   let a = OFFENSE_WEIGHT[prof?.role?.[0]] ?? 0.5;
-  if (prof && (prof.role[0] === 'backline' || prof.role[0] === 'poke')) a -= 0.05 * threat.divers;
-  a = Math.max(0.2, Math.min(0.8, a));
-  return evaluate(kits[c], prof, items, lines, threat, a).score;
+  const back = prof && (prof.role[0] === 'backline' || prof.role[0] === 'poke');
+  if (back) a -= 0.05 * threat.divers;
+  if (enemyComp) {
+    if (back && enemyComp.pick > 0.5) a -= 0.05;
+    if (enemyComp.poke > 0.5) a -= 0.03;
+  }
+  return Math.max(0.2, Math.min(0.8, a));
+}
+
+export function buildScore({ kits, items, profiles, enemyComp }, c, lines, threat) {
+  const prof = profiles?.[c];
+  return evaluate(kits[c], prof, items, lines, threat, weightFor(prof, threat, enemyComp)).score;
 }
 export { COMBOS };
 
 // Best builds for champion c against the enemy picks.
 // Returns { builds: [{ slots, score, steps: [{ line, offenseGain, survivalGain }] }], threat, a }
-export function mathBuilds({ kits, items, profiles }, c, enemy, n = 3) {
+export function mathBuilds({ kits, items, profiles, enemyComp }, c, enemy, n = 3) {
   const kit = kits?.[c]; if (!kit || !items) return null;
   const prof = profiles?.[c];
   const threat = enemyThreat(kits, profiles, enemy);
-  let a = OFFENSE_WEIGHT[prof?.role?.[0]] ?? 0.5;
-  if (prof && (prof.role[0] === 'backline' || prof.role[0] === 'poke')) a -= 0.05 * threat.divers;
-  a = Math.max(0.2, Math.min(0.8, a));
+  const a = weightFor(prof, threat, enemyComp);
   const scored = COMBOS.map((lines) => ({ lines, ...evaluate(kit, prof, items, lines, threat, a) })).sort((x, y) => y.score - x.score);
   const base = evaluate(kit, prof, items, [], threat, a);
   const builds = scored.slice(0, n).map((b) => {

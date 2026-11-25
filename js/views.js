@@ -1,5 +1,7 @@
 import { SLOTS, SLOT_LABEL, describe, actionFacts } from './kits.js';
 import { profilesFor, PATTERNS, REF_LEVEL } from './profile.js';
+import { compModel, typesOf, TYPES } from './comps.js';
+import { EFFECTS, GROUPS, effectLabel } from './effects.js';
 import { ROLES, STAT_LABELS, HIDDEN_LABELS, fmtMoney, pct, wr } from './model.js';
 import { esc, table, bar, statTone, num, link, select, setSort } from './ui.js';
 import { local } from './store.js';
@@ -377,6 +379,21 @@ export function gameFilesCard(app, why = '') {
 export const profiles = (m) => profilesFor(m);
 const patternName = (k) => PATTERNS[k].split(':')[0];
 
+function typesBlock(m, c) {
+  const cm = compModel(m); if (!cm?.T[c]) return '';
+  const ty = typesOf(cm.T[c], cm.E[c] || [], cm.P[c]);
+  return `<div class="kv"><span>Type</span><span><strong>${ty.map((t) => esc(TYPES[t].name)).join(' · ')}</strong></span></div>
+    <p class="small">${esc(TYPES[ty[0]].blurb.replace(/^./, (x) => x.toUpperCase()))}.</p>`;
+}
+const SLOT_SHORT = { attack: 'Attack', skill: 'A1', skill2: 'A2', ult: 'Ult' };
+function effectsBlock(m, c) {
+  const cm = compModel(m); const es = cm?.E[c]; if (!es?.length) return '';
+  const rows = GROUPS.map((g) => [g, es.filter((e) => EFFECTS[e.kind].group === g)]).filter(([, l]) => l.length);
+  return `<h2>Buffs and debuffs</h2>
+    <p class="muted small">Read from the ability text. Who it hits and how long it lasts, where the text says.</p>
+    ${rows.map(([g, l]) => `<div class="kv"><span>${esc(g.replace(/^./, (x) => x.toUpperCase()))}</span><span class="small">${l.map((e) => `<span class="eff eff-${EFFECTS[e.kind].good}" title="${SLOT_SHORT[e.slot]}">${esc(effectLabel(e))}</span>`).join(' ')}</span></div>`).join('')}`;
+}
+
 function profileCard(m, c) {
   const p = profiles(m)?.[c]; if (!p) return '';
   const q = p.pct;
@@ -385,6 +402,7 @@ function profileCard(m, c) {
   const cc = Object.keys(p.cc).filter((k) => k !== 'slow');
   return `<div class="card"><h2>Kit profile</h2>
     <p class="muted small">Worked out from the kit at level ${REF_LEVEL}, before balance patches. Bars compare it with every other champion.</p>
+    ${typesBlock(m, c)}
     <div class="kv"><span>Plays as</span><span><strong>${esc(patternName(p.role[0]))}</strong>, then ${esc(patternName(p.role[1]).toLowerCase())}</span></div>
     <p class="small">${esc(PATTERNS[p.role[0]].split(': ')[1].replace(/^./, (x) => x.toUpperCase()))}.</p>
     <div class="kv"><span>Damage type</span><span class="num">${100 - mag}% physical · ${mag}% magic</span></div>
@@ -397,6 +415,7 @@ function profileCard(m, c) {
     ${axis('Attack range', q.range, String(p.range))}
     ${axis('Helps allies', q.support, p.healAllies || p.shieldAllies || p.buffAllies ? [p.healAllies && 'heals', p.shieldAllies && 'shields', p.buffAllies && 'buffs'].filter(Boolean).join(', ') : 'no')}
     <div class="kv"><span>Gets in</span><span>${[p.mobility && 'dash or charge', p.untargetable && 'untargetable', p.stealth && 'stealth'].filter(Boolean).join(', ') || 'walks in'}</span></div>
+    ${effectsBlock(m, c)}
     ${p.threats.length ? `<h2>Threatens</h2><ul class="threats">${p.threats.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
   </div>`;
 }
@@ -494,14 +513,14 @@ export function game(m, r) {
     return `<div class="card ${g.winner === s ? 'won' : ''}">
       <h2>${teamLink(m, g.teams[s])} ${g.winner === s ? '<span class="win">Win</span>' : '<span class="loss">Loss</span>'}</h2>
       <p class="muted small">Bans: ${g.bans[s].map((c) => champChip(m, c)).join(' ') || 'none'}</p>
-      ${table(`game-${g.idx}-${s}`, g.picks[s].map((c, i) => ({ c, i, p: g.players[s][i] })), [
+      ${table(`game-${g.idx}-${s}`, g.picks[s].map((c, i) => ({ c, i, p: g.players[s][i], j: g.players[s][i]?.slot < 5 ? g.players[s][i].slot : i })), [
         { key: 'i', label: 'Pick', cls: 'num', value: (x) => x.i + 1 },
         { key: 'c', label: 'Champion', value: (x) => x.c, html: (x) => champChip(m, x.c) },
         { key: 'pl', label: 'Player', value: (x) => m.athletes[x.p?.aid]?.name, html: (x) => playerLink(m, m.athletes[x.p?.aid]) },
         { key: 'r', label: 'Role', value: (x) => x.p?.slot, html: (x) => (x.p ? ROLES[x.p.slot] : '–') },
-        { key: 'k', label: 'K', cls: 'num', value: (x) => sm.k[x.i] }, { key: 'd', label: 'D', cls: 'num', value: (x) => sm.d[x.i] },
-        { key: 'cs', label: 'CS', cls: 'num', value: (x) => sm.cs[x.i] }, { key: 'gold', label: 'Gold', cls: 'num', value: (x) => sm.gold[x.i] },
-        { key: 'dmg', label: 'Damage', cls: 'num', value: (x) => sm.dmg[x.i] },
+        { key: 'k', label: 'K', cls: 'num', value: (x) => sm.k[x.j] }, { key: 'd', label: 'D', cls: 'num', value: (x) => sm.d[x.j] },
+        { key: 'cs', label: 'CS', cls: 'num', value: (x) => sm.cs[x.j] }, { key: 'gold', label: 'Gold', cls: 'num', value: (x) => sm.gold[x.j] },
+        { key: 'dmg', label: 'Damage', cls: 'num', value: (x) => sm.dmg[x.j] },
       ])}
       <div class="kv"><span>Kills / deaths</span><span class="num">${sm.kills} / ${sm.deaths}</span></div>
       <div class="kv"><span>Towers / objectives</span><span class="num">${sm.towers} / ${sm.objectives}</span></div>

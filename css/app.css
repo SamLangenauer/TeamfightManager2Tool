@@ -118,3 +118,11 @@ th.num { text-align: right; }
 ul.threats { margin: 4px 0 0; padding-left: 18px; } ul.threats li { margin: 2px 0; }
 .statrow.wide { grid-template-columns: 1fr 90px minmax(70px, auto); } .statrow.wide > span:last-child { text-align: right; }
 ul.why { list-style: none; margin: 4px 0; padding: 0; font-size: 12px; } ul.why li { margin: 2px 0; }
+.eff { display: inline-block; padding: 1px 6px; margin: 1px 2px; border-radius: 4px; background: var(--panel2); white-space: nowrap; }
+.eff-enemy { border-left: 3px solid #ef5350; }
+.eff-friend { border-left: 3px solid #6aff55; }
+.card.comps h3 { margin: 8px 0 4px; font-size: 14px; }
+ul.range { margin: 4px 0; padding-left: 18px; }
+ul.range li.neg { color: var(--loss, #ef5350); }
+ul.range li.pos { color: var(--win, #3fb950); }
+.parts.kit .part.kitr { font-style: italic; }
