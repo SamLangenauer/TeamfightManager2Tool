@@ -1,4 +1,5 @@
 import { readGameFile } from './gamefiles.js';
+import { setPortraits } from './portraits.js';
 import { Model } from './model.js';
 import { parseChampions } from './champions.js';
 import { saveLast, loadLast, clearLast, saveKits, loadKits } from './store.js';
@@ -48,7 +49,7 @@ async function loadGameFile(file) {
   app.gameStatus = 'Reading champion data from the game files…'; render();
   try {
     const g = await readGameFile(file, (f) => { app.gameStatus = `Reading champion data from the game files… ${Math.round(f * 100)}%`; const el = document.getElementById('game-status'); if (el) el.textContent = app.gameStatus; });
-    app.game = g; app.gameStatus = null;
+    app.game = g; app.gameStatus = null; setPortraits(g.portraits);
     if (app.model) { app.model.kits = g.kits; app.model.items = g.items || null; }
     await saveKits(g);
   } catch (e) { app.gameStatus = 'Could not read that file: ' + e.message + '. Pick bundle.game_data from the game folder.'; }
@@ -124,6 +125,7 @@ window.addEventListener('hashchange', () => { render(); window.scrollTo(0, 0); }
   // ask the browser not to clear stored data (match history) under storage pressure
   try { await navigator.storage?.persist?.(); } catch {}
   app.game = await loadKits();
+  setPortraits(app.game?.portraits);
   const last = await loadLast();
   app.hasLast = !!last; app.lastInfo = last ? { date: last.db.date, team: last.db.meta?.teamName, savedAt: last.savedAt } : null;
   render();

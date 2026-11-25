@@ -1,10 +1,11 @@
 // Your recorded results and what the win model has learned from them.
 import { learner, results, YOUR_WEIGHT } from './learn.js';
 import { esc, table, bar } from './ui.js';
+import { face } from './portraits.js';
 import { pct } from './model.js';
 import { TACTICS } from './gameplan.js';
 
-const chips = (m, list) => list.map((c) => `<a class="chip cat-${(m.champs[c]?.cat || 'x').toLowerCase()}" href="#/champ/${c}">${esc(m.champName(c))}</a>`).join('');
+const chips = (m, list) => list.map((c) => `<a class="chip cat-${(m.champs[c]?.cat || 'x').toLowerCase()}" href="#/champ/${c}">${face(c)}${esc(m.champName(c))}</a>`).join('');
 
 export function resultsView(m) {
   if (!m.games.length) return '<div class="card">This save has no pro games yet, so there is nothing to learn from.</div>';

@@ -136,3 +136,14 @@ td span.pos { color: var(--win); } td span.neg { color: var(--loss); }
 .tag-lineup { color: var(--accent); } .tag-training { color: var(--accent2); } .tag-contracts { color: var(--warn); }
 .tag-signings { color: var(--win); } .tag-experience { color: var(--loss); }
 .gain { font-size: 12px; font-weight: 600; color: var(--win); white-space: nowrap; }
+/* Champion pictures, cut from the user's own game files (js/portraits.js). Pixel art, so no smoothing. */
+.pt { image-rendering: pixelated; vertical-align: middle; flex: none; }
+.pt-face { width: 18px; height: 18px; object-fit: cover; object-position: 50% 0; margin: -2px 4px -2px -4px; border-radius: 50%; background: rgba(0,0,0,.25); }
+.pt-full { height: 40px; width: 40px; object-fit: contain; object-position: 50% 100%; }
+.pt-big { height: 64px; width: 64px; object-fit: contain; object-position: 50% 100%; margin-right: 10px; vertical-align: bottom; }
+.champ-title { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 0 8px; }
+.champ-title .pt-big { margin-right: 2px; }
+.gchamp:has(.pt) { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; font-size: 12px; }
+.rec-pick .pt-face, .with-pt .pt-face { margin-left: 0; }
+.chip .pt-face { margin-left: -5px; }
+.cgrid:has(.pt) { grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); }
