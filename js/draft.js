@@ -124,6 +124,15 @@ export class DraftEngine {
     const lock = side ? this.locked?.[side] : null;
     return this.m.champIds.filter((c) => !taken.has(c) && this.stats[c] && !(lock && lock.has(c)));
   }
+  // How usable a champion is on the patch in use: 1 is average, lower for champions that
+  // lose more than they win or that teams barely touch, higher for strong ones.
+  viability(c) {
+    const s = this.stats[c]; if (!s) return 0.5;
+    const w = (s.wins + 15) / (s.picks + 30); // shrink small samples harder than the table does
+    let v = 1 + (w - 0.5) * 12;
+    if (s.presence < 0.05) v *= 0.6;
+    return Math.max(0.3, Math.min(1.4, v));
+  }
   canPick(side, c) { return !this.locked?.[side]?.has(c); }
 
   recommendPicks(state, side = 'us', n = 12) {
@@ -131,6 +140,9 @@ export class DraftEngine {
     const left = this.seriesLeft || 0;
     const rows = this.available(state, side).map((c) => {
       const r = this.pickScore(state, side, c);
+      // comfort counts for less on a champion that is weak this patch (and a bit more on a strong one)
+      const v = this.viability(c);
+      if (Math.abs(v - 1) > 0.05) r.parts.patchStrength = Math.max(0, r.parts.fit) * (v - 1) * 0.5;
       // deny value: how much the other side would want it
       const theirs = state[other].picks.length < 5 && this.canPick(other, c) ? this.pickScore(state, other, c) : null;
       r.parts.deny = theirs ? Math.max(0, theirs.total) * 0.15 : 0;
@@ -156,12 +168,17 @@ export class DraftEngine {
       const threat = state[other].picks.length < 5 ? this.pickScore(state, other, c) : { total: 0, role: null, player: null };
       const ours = state[side].picks.length < 5 && this.canPick(side, c) ? this.pickScore(state, side, c) : { total: 0 };
       const t = this.tend[other]; const tg = this.teamGames[other] || 1;
+      // a comfort pick on a champion that is weak this patch is not worth a ban
+      const v = this.viability(c);
       const parts = {
         threat: threat.total,
-        comfortPick: Math.min(1, (t.picks[c] || 0) / tg * 3) * 10,
+        comfortPick: Math.min(1, (t.picks[c] || 0) / tg * 3) * 10 * v,
         oftenBannedVsThem: Math.min(1, (this.tend[other].bannedVs[c] || 0) / tg * 3) * 4,
-        ownLoss: -Math.max(0, ours.total) * 0.35,
+        proBans: Math.min(this.stats[c].banRate, 0.6) * 20, // what teams ban on this patch
+        ownLoss: -Math.max(0, ours.total) * 0.25,
       };
+      // shown as its own part so you can see the cut (or boost) from patch strength
+      if (Math.abs(v - 1) > 0.05) parts.patchStrength = Math.max(0, threat.total) * (v - 1);
       const total = Object.values(parts).reduce((a, b) => a + b, 0);
       return { c, total, parts, role: threat.role, player: threat.player };
     });

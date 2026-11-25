@@ -127,7 +127,7 @@ export function draftView(m, r) {
     return `<div class="lineup">${ROLES.map((role, i) => `<label>${role} ${select(`lineup-${who}-${i}`, [['', '—'], ...roster.map((a) => [a.id, `${a.name} (${a.pos[i]})`])], D.lineup[who][i] ?? '', 'data-draft="lineup"')}</label>`).join('')}</div>`;
   };
 
-  const partLabel = { denySeries: 'Gone for them all series', saveForLater: 'Save for later games', meta: 'Meta', fit: 'Player and role fit', synergy: 'Synergy with your picks', counter: 'Against their picks', comp: 'Team composition', habit: 'Team habit', deny: 'Denies them', threat: 'Their pick value', comfortPick: 'Their comfort pick', oftenBannedVsThem: 'Usually banned vs them', ownLoss: 'You lose it too', yours: 'Your results' };
+  const partLabel = { patchStrength: 'Strength this patch', proBans: 'Teams ban it this patch', denySeries: 'Gone for them all series', saveForLater: 'Save for later games', meta: 'Meta', fit: 'Player and role fit', synergy: 'Synergy with your picks', counter: 'Against their picks', comp: 'Team composition', habit: 'Team habit', deny: 'Denies them', threat: 'Their pick value', comfortPick: 'Their comfort pick', oftenBannedVsThem: 'Usually banned vs them', ownLoss: 'You lose it too', yours: 'Your results' };
   const recList = recs.map((x, k) => {
     const ch = m.champs[x.c];
     const parts = Object.entries(x.parts).filter(([, v]) => Math.abs(v) >= 0.5).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]));
