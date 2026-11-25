@@ -126,3 +126,4 @@ ul.range { margin: 4px 0; padding-left: 18px; }
 ul.range li.neg { color: var(--loss, #ef5350); }
 ul.range li.pos { color: var(--win, #3fb950); }
 .parts.kit .part.kitr { font-style: italic; }
+td span.pos { color: var(--win); } td span.neg { color: var(--loss); }

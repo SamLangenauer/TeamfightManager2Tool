@@ -4,6 +4,7 @@
 import { ROLES, pct } from './model.js';
 import { esc } from './ui.js';
 import { compModel, teamComp, missingPieces, winCondition, rangeMatchups, COMPS, COMP_KEYS } from './comps.js';
+import { partnersOf, LINKS } from './combos.js';
 
 const name = (m, c) => esc(m.champName(c));
 
@@ -52,6 +53,14 @@ export function kitReasons(m, c, kind, mine, theirs, role) {
   const [own, opp] = kind === 'ban' ? [theirs, mine] : [mine, theirs];
   const before = own.picks.length ? teamComp(cm, own.picks) : null, after = teamComp(cm, [...own.picks, c]);
   const out = [];
+  const best = partnersOf(m, c, own.picks)[0];
+  if (best) {
+    const who = kind === 'ban' ? 'their' : 'your';
+    const link = best.links[0];
+    const why = link ? LINKS[link.key].name.toLowerCase() : '';
+    const pro = best.pro && best.pro.g >= 10 ? `, pros ${best.pro.w}–${best.pro.g - best.pro.w}` : '';
+    out.push({ pos: true, text: `Pairs with ${who} ${m.champName(best.with)}${why ? ` (${why}${pro})` : pro ? ` (${pro.slice(2)})` : ''}` });
+  }
   const oppTc = opp.picks.length ? teamComp(cm, opp.picks) : null;
   const was = new Set(before ? missingPieces(before, oppTc).map((x) => x.key) : ['noFront', 'noEngage']);
   const now = new Set(missingPieces(after, oppTc).map((x) => x.key));
@@ -66,5 +75,5 @@ export function kitReasons(m, c, kind, mine, theirs, role) {
     if (l?.penalty > 0.2) out.push({ pos: kind === 'ban', text: `Out-ranged by ${m.champName(l.b)} in ${ROLES[role]} with little way in` });
     else if (l?.edge > 0.2) out.push({ pos: kind !== 'ban', text: `Out-ranges ${m.champName(l.b)} in ${ROLES[role]}` });
   }
-  return out.slice(0, 2);
+  return out.slice(0, 3);
 }

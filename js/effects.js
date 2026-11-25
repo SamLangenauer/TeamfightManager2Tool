@@ -38,7 +38,8 @@ export const EFFECTS = {
   stealth: { name: 'Stealth', group: 'defense', good: 'friend', re: /stealth|invisib|camouflag/ },
   ccImmune: { name: 'CC immune', group: 'defense', good: 'friend', re: /immun\w* to (crowd control|cc|all)|unstoppable|cannot be (stunned|interrupted)/ },
   cleanse: { name: 'Cleanse', group: 'defense', good: 'friend', re: /cleans|remov\w* .{0,25}(debuff|crowd control|negative)/ },
-  revive: { name: 'Revive', group: 'defense', good: 'friend', re: /reviv|resurrect|return(s)? to life|cheat death/ },
+  revive: { name: 'Revive or cannot die', group: 'defense', good: 'friend', re: /reviv|resurrect|return(s)? to life|cheat death|cannot (fall below|die)/ },
+  rangeUp: { name: 'Range up', group: 'buff', good: 'friend', re: /increas\w* (their |its |the )?(attack )?range\b|gains? [\d.]* ?(attack )?range\b/ },
   aspdUp: { name: 'Attack speed up', group: 'buff', good: 'friend', re: /(gain|grant|increas|giv)\w* .{0,30}attack speed|attack speed .{0,10}(increas|up\b)|\[aspd\]/ },
   adUp: { name: 'Damage up', group: 'buff', good: 'friend', re: /(gain|grant|increas)\w* .{0,25}(attack damage|ability power|damage dealt)|deal\w* .{0,15}(more|increased) damage/ },
   cdrUp: { name: 'Cooldowns cut', group: 'buff', good: 'friend', re: /(reduc|lower|cut)\w* .{0,30}cooldown|cooldown .{0,15}(reset|reduc)/ },
@@ -51,13 +52,15 @@ export const EFFECTS = {
 export const GROUPS = ['hard CC', 'soft CC', 'debuff', 'damage', 'sustain', 'defense', 'buff', 'mobility'];
 
 // who a sentence affects, for an effect that is good for friends or bad for enemies
-function targetOf(s, good) {
+function targetOf(s, good, prev = null) {
   if (good === 'enemy') {
     if (/\b(all|nearby|surrounding) enemies|enemies (within|in|around|hit|near|on|standing)|in (an|a) (area|line|cone|circle)|\barea\b|each enemy|enemies it passes/.test(s)) return 'enemies';
     return 'enemy';
   }
   if (/\b(all )?allies\b|allied champions|the team|nearby allies|every ally/.test(s)) return 'allies';
-  if (/\b(an|one|another|the|target|lowest-health|nearest) ally\b|\bally\b/.test(s)) return 'ally';
+  if (/\b(an|one|another|the|target|lowest-health|nearest) ally\b|\bally\b|allied champion\b/.test(s)) return 'ally';
+  // "they gain …" in a sentence after one that names an ally refers to that ally
+  if (prev && /\b(they|their|the ally)\b/.test(s) && !/\b(themself|themselves|itself|himself|herself)\b/.test(s)) return prev;
   return 'self';
 }
 
@@ -67,7 +70,9 @@ export function effectsOf(kit) {
   const out = [];
   for (const slot of SLOTS) {
     const text = fillText(kit, slot); if (!text) continue;
+    let prevAlly = null;
     for (const s of sentences(text)) {
+      const named = targetOf(s, 'friend');
       for (const [kind, e] of Object.entries(EFFECTS)) {
         const m = s.match(e.re); if (!m) continue;
         if (EFFECTS[kind].group === 'hard CC' && /\b(remov|cleans|reflect|immun)/.test(s)) continue; // listed as what gets removed or blocked
@@ -78,12 +83,14 @@ export function effectsOf(kit) {
         if (kind === 'heal' && /cannot (be )?heal|(reduc|lower|cut)\w* .{0,25}healing/.test(s) && !/restor/.test(s)) continue;
         if (kind === 'slow' && /slowly/.test(s) && !/\bslow(s|ing|ed)?\b/.test(s.replace(/slowly/g, ''))) continue;
         if (e.good === 'enemy' && /\ball(y|ies|ied)\b/.test(s) && !/enem|target|them\b/.test(s)) continue; // a drawback on your own team
+        if (e.good === 'enemy' && prevAlly && /^however|\btheir\b/.test(s) && !/enem|target/.test(s)) continue; // drawback on the allies just named
         const before = s.slice(Math.max(0, m.index - 14), m.index), after = s.slice(m.index, m.index + 60);
         const amount = +(before.match(/([\d.]+)%\s*(\[\w+\])?\s*$/)?.[1] ?? after.match(/^[^,.;]{0,30}?\b(by|of) ([\d.]+)%/)?.[2] ?? NaN);
         const dur = +(after.match(/^[^.;]{0,50}?for (\[num\])?([\d.]+)\s?s\b/)?.[2] ?? s.match(/for (\[num\])?([\d.]+)\s?s\b/)?.[2] ?? NaN);
         if (out.some((x) => x.kind === kind && x.slot === slot)) continue;
-        out.push({ kind, slot, target: kind === 'dash' ? 'self' : targetOf(s, e.good), dur: Number.isFinite(dur) ? dur : null, amount: Number.isFinite(amount) ? amount : null });
+        out.push({ kind, slot, target: kind === 'dash' ? 'self' : targetOf(s, e.good, e.good === 'friend' ? prevAlly : null), dur: Number.isFinite(dur) ? dur : null, amount: Number.isFinite(amount) ? amount : null });
       }
+      if (named === 'ally' || named === 'allies') prevAlly = named;
     }
   }
   return out;

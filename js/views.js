@@ -1,6 +1,7 @@
 import { SLOTS, SLOT_LABEL, describe, actionFacts } from './kits.js';
 import { profilesFor, PATTERNS, REF_LEVEL } from './profile.js';
 import { compModel, typesOf, TYPES } from './comps.js';
+import { allCombos, LINKS } from './combos.js';
 import { EFFECTS, GROUPS, effectLabel } from './effects.js';
 import { ROLES, STAT_LABELS, HIDDEN_LABELS, fmtMoney, pct, wr } from './model.js';
 import { esc, table, bar, statTone, num, link, select, setSort } from './ui.js';
@@ -10,6 +11,7 @@ import { local } from './store.js';
 const F = local.get('filters', {});
 const filt = (view, defaults) => (F[view] = { ...defaults, ...(F[view] || {}) });
 const saveFilters = () => local.set('filters', F);
+export const filtersFor = (view) => F[view] || {};
 let watch = new Set(local.get('watchlist', []));
 
 export function handleChange(el) {
@@ -394,6 +396,15 @@ function effectsBlock(m, c) {
     ${rows.map(([g, l]) => `<div class="kv"><span>${esc(g.replace(/^./, (x) => x.toUpperCase()))}</span><span class="small">${l.map((e) => `<span class="eff eff-${EFFECTS[e.kind].good}" title="${SLOT_SHORT[e.slot]}">${esc(effectLabel(e))}</span>`).join(' ')}</span></div>`).join('')}`;
 }
 
+function partnersCard(m, c) {
+  const rows = allCombos(m).filter((x) => x.a === c || x.b === c).slice(0, 8);
+  if (!rows.length) return '';
+  return `<div class="card"><h2>Best partners</h2>
+    <p class="muted small">Kit links first, with the pro record together. <a href="#/combos">All combos</a></p>
+    ${rows.map((x) => { const o = x.a === c ? x.b : x.a; const l = x.links[0]; return `<div class="kv"><span>${champChip(m, o)}</span><span class="small">${l ? esc(LINKS[l.key].text(m.champName(l.from), m.champName(l.to))) : 'Strong pro record'}${x.pro ? ` <span class="muted">· ${x.pro.w}–${x.pro.g - x.pro.w} together</span>` : ''}</span></div>`; }).join('')}
+  </div>`;
+}
+
 function profileCard(m, c) {
   const p = profiles(m)?.[c]; if (!p) return '';
   const q = p.pct;
@@ -476,7 +487,7 @@ export function champ(m, r, app) {
       <h2>Worst with</h2>${best(sy, -1)}
     </div>
   </div>
-  ${m.kits?.[c] ? `<div class="grid two">${profileCard(m, c)}<div>${kitCard(m, c, app)}</div></div>` : kitCard(m, c, app)}
+  ${m.kits?.[c] ? `<div class="grid two">${profileCard(m, c)}<div>${kitCard(m, c, app)}${partnersCard(m, c)}</div></div>` : kitCard(m, c, app)}
   <div class="grid two">
     <div class="card"><h2>Strong against</h2><p class="muted small">Win rate when facing these champions.</p>${best(vv, 1)}</div>
     <div class="card"><h2>Weak against</h2>${best(vv, -1)}</div>
