@@ -8,7 +8,7 @@ import { recommendBuilds, recommendTactics, TACTICS, LINES, damageBucket, BUCKET
 import { mathBuilds, stepReason, ITEM_LEVEL } from './items.js';
 import { profiles } from './views.js';
 import { compCard, kitReasons } from './compview.js';
-import { compModel, teamComp } from './comps.js';
+import { compModel, teamComp, missingPieces, rangeMatchups, COMPS } from './comps.js';
 
 let D = local.get('draft', null);
 let engine = null, engineKey = '';
@@ -91,7 +91,7 @@ export function draftView(m, r) {
   if (step) {
     const who = ourTurn ? 'us' : 'them';
     recs = step.kind === 'ban' ? engine.recommendBans(st, who, 10) : engine.recommendPicks(st, who, 10);
-    label = `${ourTurn ? 'Your' : `${m.teamName(D.opp)}'s`} ${step.kind} (${step.kind === 'ban' ? 'ban' : 'pick'} ${steps.slice(0, cur + 1).filter((s) => s.side === step.side && s.kind === step.kind).length})`;
+    label = `${ourTurn ? 'Your' : 'Their'} ${step.kind} ${steps.slice(0, cur + 1).filter((s) => s.side === step.side && s.kind === step.kind).length} of ${steps.filter((s) => s.side === step.side && s.kind === step.kind).length}`;
   }
   const L = learner(m);
   const predictFor = (usPicks, themPicks) => L.predict({ us: usPicks, them: themPicks, lineupUs: engine.lineup.us, lineupThem: engine.lineup.them, sideA: D.side === 'A', roles: D.roles });
@@ -108,29 +108,64 @@ export function draftView(m, r) {
   };
   const sides = m.kits ? { us: sideInfo('us'), them: sideInfo('them') } : null;
 
+  const sideOf = (who) => (who === 'us' ? D.side : D.side === 'A' ? 'B' : 'A');
+  const chip = (c, cls = '') => `<span class="chip ${cls} cat-${(m.champs[c]?.cat || '').toLowerCase()}">${face(c)}${esc(m.champName(c))}</span>`;
+  const cm = sides ? compModel(m) : null;
+  const tcs = cm ? { us: teamComp(cm, st.us.picks), them: teamComp(cm, st.them.picks) } : null;
+  const rm = cm && sides ? rangeMatchups(cm, sides.us.byRole, sides.them.byRole) : null;
+  const rangeWarn = rm ? rm.lanes.filter((l) => l.penalty > 0.15).length + (rm.team > 0.15 ? 1 : 0) : 0;
+  const ordinal = (i) => steps.slice(0, i + 1).filter((s) => s.kind === steps[i].kind && s.side === steps[i].side).length;
+
+  // One team's column: bans, then its five picks in the order they come up, then a short read of its comp.
   const board = (who) => {
-    const sideLetter = who === 'us' ? D.side : D.side === 'A' ? 'B' : 'A';
+    const sideLetter = sideOf(who);
     const teamId = who === 'us' ? D.us : D.opp;
     const banSlots = steps.map((s, i) => ({ s, i })).filter((x) => x.s.side === sideLetter && x.s.kind === 'ban');
     const pickSlots = steps.map((s, i) => ({ s, i })).filter((x) => x.s.side === sideLetter && x.s.kind === 'pick');
-    const slot = ({ i }, kind) => {
+    const pickNo = (i) => steps.slice(0, i + 1).filter((s) => s.kind === 'pick').length;
+    const slot = ({ i }) => {
       const c = D.entries[i];
-      const pickIdx = kind === 'pick' && c ? st[who].picks.indexOf(c) : -1;
+      const pickIdx = c ? st[who].picks.indexOf(c) : -1;
       const role = pickIdx >= 0 ? assigned[who].roles[pickIdx] : null;
       const aid = role != null ? engine.lineup[who][role] : null;
       const locked = c && D.roles[who][c] != null;
       const roleSel = role != null ? `<select name="role-${who}-${c}" data-draft="role" class="role-pick ${locked ? 'locked' : ''}" title="${locked ? 'Role you set' : 'Guessed role. Change it once you see where they play.'}">
           <option value="">${locked ? 'Guess' : ROLES[role] + ' (guess)'}</option>${ROLES.map((rn, ri) => `<option value="${ri}" ${locked && D.roles[who][c] === ri ? 'selected' : ''}>${rn}</option>`).join('')}</select>` : '';
-      return `<div class="slot ${kind} ${i === cur ? 'current' : ''} ${c ? 'filled' : ''}">
-        <span class="slot-main" data-action="draft-goto" data-step="${i}" title="Click to redo from here">${c ? `<span class="chip cat-${(m.champs[c]?.cat || '').toLowerCase()}">${face(c)}${esc(m.champName(c))}</span>` : `<span class="muted">${i === cur ? 'now' : '–'}</span>`}</span>
-        ${roleSel}${aid != null ? `<span class="muted small">${esc(m.athletes[aid]?.name || '')}</span>` : ''}
+      return `<div class="slot pick ${i === cur ? 'current' : ''} ${c ? 'filled' : ''}">
+        <div class="slot-head"><span class="slot-no">P${pickNo(i)}</span>
+        <span class="slot-main" ${c ? `data-action="draft-goto" data-step="${i}" title="Click to redo the draft from here"` : ''}>${c ? chip(c) : `<span class="muted small">${i === cur ? 'Picking now' : '–'}</span>`}</span></div>
+        ${c ? `<div class="slot-sub">${roleSel}${aid != null ? `<span class="muted small">${esc(m.athletes[aid]?.name || '')}</span>` : ''}</div>` : ''}
       </div>`;
     };
-    return `<div class="card board ${who}">
+    const ban = ({ i }) => {
+      const c = D.entries[i];
+      return c ? `<span class="slot-main ban-chip" data-action="draft-goto" data-step="${i}" title="Banned. Click to redo the draft from here">${chip(c, 'banned')}</span>`
+        : `<span class="ban-empty ${i === cur ? 'current' : ''}">${i === cur ? 'now' : '–'}</span>`;
+    };
+    const tc = tcs?.[who], other = tcs?.[who === 'us' ? 'them' : 'us'];
+    const miss = tc ? missingPieces(tc, other).slice(0, 3) : [];
+    const summary = tc ? `<div class="team-comp" data-action="draft-tab" data-tab="comp" title="Open the Compositions tab">
+        <div class="small"><strong>${esc(COMPS[tc.main].name)}</strong> <span class="muted">draft, backup ${esc(COMPS[tc.second].name.toLowerCase())}</span></div>
+        ${miss.length ? `<ul class="threats small">${miss.map((x) => `<li>${esc(x.text)}</li>`).join('')}</ul>` : ''}</div>` : '';
+    return `<section class="dr-team ${who} ${step && (step.side === sideLetter) ? 'turn' : ''}">
       <h2>${esc(m.teamName(teamId))} <span class="muted small">side ${sideLetter}${who === 'us' ? ' · you' : ''}</span></h2>
-      <div class="bans">${banSlots.map((x) => slot(x, 'ban')).join('')}</div>
-      <div class="picks">${pickSlots.map((x) => slot(x, 'pick')).join('')}</div>
-    </div>`;
+      <div class="dr-bans"><span class="muted small">Bans</span>${banSlots.map(ban).join('')}</div>
+      <div class="dr-picks">${pickSlots.map(slot).join('')}</div>
+      ${summary}
+    </section>`;
+  };
+
+  // The whole draft in the order it happens. Click a filled step to redo from there.
+  const timeline = () => {
+    let html = '<span class="tl-sep">Bans</span>';
+    steps.forEach((s, i) => {
+      if (i && s.kind !== steps[i - 1].kind) html += '<span class="tl-sep">Picks</span>';
+      const c = D.entries[i]; const who = s.side === D.side ? 'us' : 'them';
+      html += `<button class="tl ${who} ${s.kind} ${i === cur ? 'current' : ''} ${c ? 'filled' : ''}" ${c ? `data-action="draft-goto" data-step="${i}" title="Redo the draft from here"` : 'tabindex="-1"'}>
+        <span class="tl-lab">${who === 'us' ? 'You' : 'Them'} ${s.kind} ${ordinal(i)}</span>
+        <span class="tl-c">${c ? `${face(c)}<span>${esc(m.champName(c))}</span>` : i === cur ? '<strong>Now</strong>' : ''}</span></button>`;
+    });
+    return `<div class="dr-timeline">${html}</div>`;
   };
 
   const lineupEditor = (who) => {
@@ -233,7 +268,7 @@ export function draftView(m, r) {
   const lockedNow = (c) => step && step.kind === 'pick' && engine.locked[turnSide].has(c);
   const q = (D.filter || '').toLowerCase();
   const grid = m.champIds.filter((c) => !q || m.champName(c).toLowerCase().includes(q))
-    .sort((a, b) => m.champName(a).localeCompare(m.champName(b)))
+    .sort((a, b) => (q ? (m.champName(b).toLowerCase().startsWith(q) - m.champName(a).toLowerCase().startsWith(q)) : 0) || m.champName(a).localeCompare(m.champName(b)))
     .map((c) => `<button class="gchamp cat-${(m.champs[c].cat || '').toLowerCase()} ${engine.locked.us.has(c) || engine.locked.them.has(c) ? 'used' : ''}" data-action="draft-pick" data-c="${c}" ${taken.has(c) || !step || lockedNow(c) ? 'disabled' : ''} ${lockedNow(c) ? 'title="Used earlier in the series"' : ''}>${face(c, 'full')}<span>${esc(m.champName(c))}</span></button>`).join('');
 
   function seriesBar() {
@@ -255,43 +290,68 @@ export function draftView(m, r) {
     </div>`;
   }
 
-  return `
-  <h1>Draft</h1>
-  <div class="filters">
-    <label>You ${select('us', teamOpts, D.us, 'data-draft="setup"')}</label>
-    <label>Against ${select('opp', teamOpts, D.opp, 'data-draft="setup"')}</label>
-    <label>Your side ${select('side', [['A', 'A (first pick)'], ['B', 'B']], D.side, 'data-draft="setup"')}</label>
-    <label>Bans each ${select('bansPer', [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], D.bansPer, 'data-draft="setup"')}</label>
-    <label>Pick order ${select('order', [['snake', 'A B B A A B B A A B'], ['alt', 'A B A B A B A B A B']], D.order, 'data-draft="setup"')}</label>
-    <label>Data ${select('patch', patchOpts, D.patch, 'data-draft="setup"')}</label>
-    <button class="ghost" data-action="draft-undo" ${cur ? '' : 'disabled'}>Undo</button>
-    <label>Fearless ${select('fearless', [['off', 'Off'], ['hard', 'Hard (nobody repicks)'], ['soft', 'Soft (own picks only)']], D.fearless, 'data-draft="setup"')}</label>
-    ${D.fearless !== 'off' ? `<label>Best of ${select('bestOf', [[3, '3'], [5, '5'], [7, '7']], D.series.bestOf, 'data-draft="setup"')}</label>` : ''}
-    <button class="ghost" data-action="draft-reset">Reset</button>
-  </div>
-  ${seriesBar()}
-  <p class="muted small">Based on ${engine.games.length} games. Enter each ban and pick as it happens in game: click a suggestion, or a champion below. Click a filled slot to redo the draft from there.</p>
-  <div class="outlook"><span>Win chance</span><span class="bar wide"><span style="width:${Math.round(out * 100)}%"></span></span><strong>${pct(out)}</strong><span class="muted small">win chance for ${esc(m.teamName(D.us))}, from a model trained on ${L.pro.length} pro games${L.mine.length ? ` and ${L.mine.length} of your results` : ''}. <a href="#/results">How it learns</a></span></div>
-  <div class="draft-grid">
-    ${board('us')}
-    <div class="card center">
-      <h2>${esc(label)}</h2>
-      ${step ? `<p class="muted small">${ourTurn ? (step.kind === 'ban' ? 'Bans that take away what they want most, minus what you would lose.' : 'Picks scored for your lineup and this draft.') : (step.kind === 'ban' ? 'What they are likely to ban.' : 'What they are likely to pick. Enter what they actually take.')}</p>` : ''}
-      ${step ? `<div class="recs">${recList}</div>` : resultBox()}
+  const tab = step ? (D.tab || 'pick') : (D.tab && D.tab !== 'pick' ? D.tab : 'pick');
+  const tabs = [
+    ['pick', step ? 'Suggestions' : 'Result and game plan'],
+    ['comp', `Compositions${rangeWarn ? ` <span class="warn-dot" title="Range warnings">${rangeWarn}</span>` : ''}`],
+    ['lineup', 'Lineups'],
+    ['settings', `Settings${D.fearless !== 'off' ? ' and series' : ''}`],
+  ];
+  const hint = !step ? 'Record the result once the game is over. The game plan below has builds and tactics.'
+    : ourTurn ? (step.kind === 'ban' ? 'Bans that take away what they want most, minus what you would lose.' : 'Picks scored for your lineup and this draft.')
+      : (step.kind === 'ban' ? 'What they are likely to ban. Enter what they actually ban.' : 'What they are likely to pick. Enter what they actually take.');
+  const fearlessTag = D.fearless !== 'off' ? `<button class="tag tag-fearless" data-action="draft-tab" data-tab="settings" title="Fearless series settings">Fearless ${D.fearless} · game ${Math.min(D.series.games.length + 1, D.series.bestOf)} of ${D.series.bestOf}</button>` : '';
+
+  let body = '';
+  if (tab === 'pick') {
+    body = step ? `<div class="dr-pick">
+        <div class="dr-recs"><div class="recs">${recList}</div></div>
+        <div class="dr-pool">
+          <input name="draft-filter" data-draft="filter" data-live autocomplete="off" placeholder="Type a champion, Enter to lock in" value="${esc(D.filter || '')}">
+          <div class="cgrid">${grid}</div>
+        </div>
+      </div>` : `<div class="card result">${resultBox()}</div>${gamePlan()}`;
+  } else if (tab === 'comp') {
+    body = sides ? (compCard(m, sides) || '<p class="muted">Compositions fill in once champions are picked.</p>') : '<p class="muted">Compositions need champion kits. Point the app at your game files on the load screen.</p>';
+  } else if (tab === 'lineup') {
+    body = `<div class="grid two">
+      <div class="card"><h2>Your lineup</h2>${lineupEditor('us')}</div>
+      <div class="card"><h2>Their lineup</h2>${lineupEditor('them')}</div></div>
+      <p class="muted small">Who plays each role. Suggestions use these players' champion skill and role fit.</p>`;
+  } else {
+    body = `<div class="card"><h2>Draft settings</h2><div class="filters">
+      <label>Bans each ${select('bansPer', [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], D.bansPer, 'data-draft="setup"')}</label>
+      <label>Pick order ${select('order', [['snake', 'A B B A A B B A A B'], ['alt', 'A B A B A B A B A B']], D.order, 'data-draft="setup"')}</label>
+      <label>Data ${select('patch', patchOpts, D.patch, 'data-draft="setup"')}</label>
+      <label>Fearless ${select('fearless', [['off', 'Off'], ['hard', 'Hard (nobody repicks)'], ['soft', 'Soft (own picks only)']], D.fearless, 'data-draft="setup"')}</label>
+      ${D.fearless !== 'off' ? `<label>Best of ${select('bestOf', [[3, '3'], [5, '5'], [7, '7']], D.series.bestOf, 'data-draft="setup"')}</label>` : ''}
     </div>
+    <p class="muted small">Suggestions are based on ${engine.games.length} pro games. The win chance comes from a model trained on ${L.pro.length} pro games${L.mine.length ? ` and ${L.mine.length} of your results` : ''}. <a href="#/results">How it learns</a></p></div>
+    ${seriesBar()}`;
+  }
+
+  return `<div class="dr">
+  <div class="dr-top">
+    <label>You ${select('us', teamOpts, D.us, 'data-draft="setup"')}</label>
+    <label>vs ${select('opp', teamOpts, D.opp, 'data-draft="setup"')}</label>
+    <label>Side ${select('side', [['A', 'A (first pick)'], ['B', 'B']], D.side, 'data-draft="setup"')}</label>
+    ${fearlessTag}
+    <span class="dr-win" title="Win chance for ${esc(m.teamName(D.us))}, from a model trained on ${L.pro.length} pro games${L.mine.length ? ` and ${L.mine.length} of your results` : ''}">Win chance <span class="bar"><span style="width:${Math.round(out * 100)}%"></span></span><strong>${pct(out)}</strong></span>
+    <span class="spacer"></span>
+    <button class="ghost" data-action="draft-undo" ${cur ? '' : 'disabled'} title="Take back the last ban or pick">Undo</button>
+    <button class="ghost" data-action="draft-reset" title="Clear this draft">Reset</button>
+  </div>
+  ${timeline()}
+  <div class="dr-main">
+    ${board('us')}
+    <section class="dr-center">
+      <div class="dr-now ${turnSide || 'done'}"><div class="dr-step">${esc(label)}</div><div class="muted small">${hint}</div></div>
+      <div class="dr-tabs" role="tablist">${tabs.map(([k, t]) => `<button role="tab" class="${k === tab ? 'active' : ''}" data-action="draft-tab" data-tab="${k}">${t}</button>`).join('')}</div>
+      <div class="dr-body">${body}</div>
+    </section>
     ${board('them')}
   </div>
-  ${sides ? compCard(m, sides) : ''}
-  ${gamePlan()}
-  <div class="grid two">
-    <div class="card"><h2>Your lineup</h2>${lineupEditor('us')}</div>
-    <div class="card"><h2>Their lineup</h2>${lineupEditor('them')}</div>
-  </div>
-  <div class="card">
-    <h2>All champions</h2>
-    <input name="draft-filter" data-draft="filter" data-live placeholder="Filter champions" value="${esc(D.filter || '')}">
-    <div class="cgrid">${grid}</div>
-  </div>`;
+</div>`;
 }
 
 // Tactics as they stand: your changes on top of the suggestions.
@@ -305,7 +365,13 @@ function currentTactics(m, st) {
 export function draftEvents(a, el, app) {
   if (!D) return false;
   const steps = sequence(D.bansPer, D.order);
-  if (a === 'draft-pick') { if (D.entries.length < steps.length && !D.entries.includes(el.dataset.c)) { D.entries.push(el.dataset.c); D.filter = ''; save(); } return true; }
+  if (a === 'draft-pick') { if (D.entries.length < steps.length && !D.entries.includes(el.dataset.c)) { D.entries.push(el.dataset.c); D.filter = ''; if (D.entries.length === steps.length) D.tab = 'pick'; save(); } return true; }
+  if (a === 'draft-tab') { D.tab = el.dataset.tab; save(); return true; }
+  if (a === 'enter' && el.dataset.draft === 'filter') {
+    const first = document.querySelector('.cgrid button.gchamp:not(:disabled)');
+    if (first && D.entries.length < steps.length) { D.entries.push(first.dataset.c); D.filter = ''; save(); }
+    return true;
+  }
   if (a === 'draft-undo') { D.entries.pop(); D.recorded = null; save(); return true; }
   if (a === 'draft-reset') { D.entries = []; D.recorded = null; D.roles = { us: {}, them: {} }; D.tactics = {}; save(); return true; }
   if (a === 'series-new') { D.series = { bestOf: D.series?.bestOf || 3, games: [], extra: [] }; D.entries = []; D.recorded = null; D.roles = { us: {}, them: {} }; D.tactics = {}; save(); return true; }
