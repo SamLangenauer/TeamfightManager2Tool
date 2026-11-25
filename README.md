@@ -66,6 +66,15 @@ The per-game player stats (gold, CS, kills, deaths, damage) are stored by role, 
 - Plague Doctor with Siege Breaker: the kits link strongly (stacking attack buffs, attack buffs on an auto-attacker, and keeping it alive), but pros won 17 of 32 games together, about what the two win apart (55%).
 - Adding a team's total kit combo strength to the win model made no reliable difference (between 0 and +0.5 points depending on small details), so it is not part of the win chance. Combos explain suggestions; they do not change scores.
 
+## Ask Claude (Claude artifact)
+
+The same app also runs as a Claude artifact. There the Draft page gets an **Ask Claude** tab, and an **Ask** button on each suggestion. A question goes to Claude on the viewer's own Claude account with the live draft: both teams, bans and picks with roles, each lineup player's best champions, the app's suggestions with their score parts, the win chance, compositions, range warnings and the patch meta. Claude can also call four page functions to look up more numbers from the save (`champion_info`, `win_chance`, `player_pool`, `pair_record`). The save itself is never sent.
+
+- `artifact.html` is the artifact's page: `index.html` without the html, head and body tags, which the publisher adds. Everything else is the same files as the site.
+- `js/askclaude.js` holds the chat. It only shows when `window.claude.use('sample')` answers, so on GitHub Pages the tab stays hidden.
+- To publish an update, publish `artifact.html` with every file under `js/`, `css/app.css` and `data/champions.tsv` (as `text/plain`), and the `sample` capability.
+- Saves are decoded in a worker, or on the page if a view does not allow workers.
+
 ## Hosting on GitHub Pages
 
 In the repository, go to Settings, then Pages. Under "Build and deployment", choose "Deploy from a branch", pick `main` and `/ (root)`, and save. The site appears at `https://<user>.github.io/TeamfightManager2Tool/` after a minute or two.

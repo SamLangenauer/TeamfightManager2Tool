@@ -76,15 +76,27 @@ async function loadFile(file) {
   const setStatus = (t, f) => { if (status) status.innerHTML = `${esc(t)}${f != null ? ` <span class="bar wide"><span style="width:${Math.round(f * 100)}%"></span></span>` : ''}`; };
   setStatus('Reading the file…', 0);
   const buf = await file.arrayBuffer();
-  const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
   const text = await champText();
+  // Decode in a worker. Where workers are not allowed (some embedded views), decode on the page instead.
+  const onPage = async () => {
+    try {
+      const { decodeSave } = await import('./decodesave.js');
+      const { db, png } = await decodeSave(buf, text, (stage, f) => setStatus(stage + '…', f));
+      useDb(db, png);
+    } catch (e) { setStatus('Could not read this save: ' + (e.message || e)); }
+  };
+  let worker;
+  try { worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' }); } catch { return onPage(); }
+  let started = false;
+  worker.onerror = (e) => { e.preventDefault?.(); worker.terminate(); if (!started) onPage(); else setStatus('Could not read this save: ' + (e.message || 'the decoder stopped')); };
   worker.onmessage = (ev) => {
-    const m = ev.data;
+    const m = ev.data; started = true;
     if (m.type === 'progress') setStatus(m.stage + '…', m.f);
     else if (m.type === 'error') { setStatus('Could not read this save: ' + m.message); worker.terminate(); }
     else if (m.type === 'done') { worker.terminate(); useDb(m.db, m.png); }
   };
-  worker.postMessage({ file: buf, champText: text }, [buf]);
+  // keep a copy for the on-page fallback; the worker gets its own
+  worker.postMessage({ file: buf.slice(0), champText: text }, []);
 }
 
 // ---- events ----

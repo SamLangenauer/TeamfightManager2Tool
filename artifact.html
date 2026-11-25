@@ -1,0 +1,27 @@
+<title>TFM2 Analyst</title>
+<link rel="stylesheet" href="css/app.css">
+<!-- The page body for running the app as a Claude artifact (the publisher adds the html, head and body
+     tags). It is index.html without the document skeleton; the Draft page then gets an "Ask Claude" tab. -->
+<header class="top">
+  <a class="brand" href="#/home">TFM2 Analyst</a>
+  <nav id="nav" hidden>
+    <a href="#/home" data-route="home">Home</a>
+    <a href="#/next" data-route="next">Next actions</a>
+    <a href="#/draft" data-route="draft">Draft</a>
+    <a href="#/results" data-route="results">History</a>
+    <a href="#/meta" data-route="meta">Meta</a>
+    <a href="#/combos" data-route="combos">Combos</a>
+    <a href="#/scout" data-route="scout">Scouting</a>
+    <a href="#/players" data-route="players">Players</a>
+    <a href="#/teams" data-route="teams">Teams</a>
+    <a href="#/games" data-route="games">Matches</a>
+  </nav>
+  <span class="spacer"></span>
+  <span id="save-name" class="muted small"></span>
+  <button class="ghost small" data-action="new-save" title="Open a different save">Open save</button>
+</header>
+<input type="file" id="file-input" accept=".data,.bak" hidden>
+<input type="file" id="game-input" accept=".game_data" hidden>
+<main id="main"><p class="muted">Loading…</p></main>
+<footer class="muted small">An unofficial fan tool. Not affiliated with Team Samoyed. Your save stays in this browser; Ask Claude sends the draft and the players in it to Claude on your account.</footer>
+<script type="module" src="js/app.js"></script>
