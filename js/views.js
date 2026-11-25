@@ -390,7 +390,7 @@ function profileCard(m, c) {
   return `<div class="card"><h2>Kit profile</h2>
     <p class="muted small">Worked out from the kit at level ${REF_LEVEL}, before balance patches. Bars compare it with every other champion.</p>
     <div class="kv"><span>Plays as</span><span><strong>${esc(patternName(p.role[0]))}</strong>, then ${esc(patternName(p.role[1]).toLowerCase())}</span></div>
-    <p class="small">${esc(PATTERNS[p.role[0]].split(': ')[1])}.</p>
+    <p class="small">${esc(PATTERNS[p.role[0]].split(': ')[1].replace(/^./, (x) => x.toUpperCase()))}.</p>
     <div class="kv"><span>Damage type</span><span class="num">${100 - mag}% physical · ${mag}% magic</span></div>
     <div class="dmgsplit"><span class="phys" style="width:${100 - mag}%"></span><span class="magic" style="width:${mag}%"></span></div>
     ${axis('Burst (one rotation)', q.burst, Math.round(p.burst) + ' dmg')}
