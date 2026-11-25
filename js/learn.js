@@ -78,12 +78,12 @@ export class Learner {
     const s = this.stats[c]; if (!s) return 0.5;
     let w = s.wins, g = s.picks;
     if (ex && ex.picks[side].includes(c)) { g--; if (ex.winner === side) w--; }
-    return wr(w, g);
+    return wr(w, g, this.stats.shrinkK);
   }
   pair(map, a, b, ex, side, sameTeam) {
     const v = map.get(a + '|' + b); let g = v ? v[0] : 0, w = v ? v[1] : 0;
     if (ex && ex.picks[side].includes(a) && ex.picks[sameTeam ? side : 1 - side].includes(b)) { g--; if (ex.winner === side) w--; }
-    return g > 0 ? wr(w, g, 8) : 0.5;
+    return g > 0 ? wr(w, g, map.k ?? 8) : 0.5;
   }
   fitValue(picks, lineup, ex, fixed) {
     if (!picks.length) return 0;

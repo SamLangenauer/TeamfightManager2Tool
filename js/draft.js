@@ -81,7 +81,7 @@ export class DraftEngine {
   }
 
   meta(c) { const s = this.stats[c]; return { win: s.adjWin, presence: s.presence, picks: s.picks }; }
-  pairWr(map, a, b) { const v = map.get(a + '|' + b); return v ? { g: v[0], w: wr(v[1], v[0], 8) } : { g: 0, w: 0.5 }; }
+  pairWr(map, a, b) { const v = map.get(a + '|' + b); return v ? { g: v[0], w: wr(v[1], v[0], map.k ?? 8) } : { g: 0, w: 0.5 }; }
 
   // Score champion c as a pick for `side` ('us' or 'them') in draft state.
   pickScore(state, side, c) {
@@ -128,8 +128,7 @@ export class DraftEngine {
   // lose more than they win or that teams barely touch, higher for strong ones.
   viability(c) {
     const s = this.stats[c]; if (!s) return 0.5;
-    const w = (s.wins + 15) / (s.picks + 30); // shrink small samples harder than the table does
-    let v = 1 + (w - 0.5) * 12;
+    let v = 1 + (s.adjWin - 0.5) * 12; // adjWin is already shrunk by sample size
     if (s.presence < 0.05) v *= 0.6;
     return Math.max(0.3, Math.min(1.4, v));
   }

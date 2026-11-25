@@ -15,6 +15,24 @@ export { STAT_KEYS, HIDDEN_KEYS };
 // Smoothed win rate: pulls small samples toward 50%.
 export const wr = (w, g, k = 10) => (w + k / 2) / (g + k);
 
+// How hard to pull win rates toward 50%, estimated from the data (empirical Bayes).
+// The spread of observed win rates is real spread plus coin-flip noise; the noise
+// part is known from each sample size, so what is left is how much the true win
+// rates really differ. k is the number of 50% games added to every sample: when
+// champions barely differ, k is large and a 5-1 record on a rarely played pick
+// counts for little. rows: [[wins, games], ...].
+export function shrinkK(rows, { min = 20, max = 1000 } = {}) {
+  rows = rows.filter(([, g]) => g > 0);
+  const m = rows.length; if (m < 5) return min * 5;
+  let N = 0, W = 0, G2 = 0;
+  for (const [w, g] of rows) { N += g; W += w; G2 += g * g; }
+  const p = W / N, pq = p * (1 - p) || 0.25;
+  let S = 0; for (const [w, g] of rows) S += g * (w / g - p) ** 2;
+  const tau2 = (S - (m - 1) * pq) / (N - G2 / N);
+  if (!(tau2 > 0)) return max;
+  return Math.max(min, Math.min(max, pq / tau2));
+}
+
 export class Model {
   constructor(db, champs) {
     this.db = db; this.champs = champs;
@@ -92,9 +110,12 @@ export class Model {
       }
     }
     const n = games.length || 1;
+    // win rates are shrunk by how much champions really differ in these games, not by a fixed amount
+    const k = shrinkK(Object.values(s).map((x) => [x.wins, x.picks]));
+    s.shrinkK = k; Object.defineProperty(s, 'shrinkK', { enumerable: false });
     for (const x of Object.values(s)) {
       x.pickRate = x.picks / n; x.banRate = x.bans / n; x.presence = (x.picks + x.bans) / n;
-      x.winRate = x.picks ? x.wins / x.picks : null; x.adjWin = wr(x.wins, x.picks);
+      x.winRate = x.picks ? x.wins / x.picks : null; x.adjWin = wr(x.wins, x.picks, k);
       x.kda = x.picks ? (x.k / Math.max(1, x.d)) : null;
       x.mainRole = x.roles.indexOf(Math.max(...x.roles));
     }
@@ -116,6 +137,9 @@ export class Model {
         }
       }
     }
+    // pair records hold far fewer games, so they get their own (usually larger) pull toward 50%
+    syn.k = shrinkK([...syn.values()].map(([g, w]) => [w, g]), { min: 8 });
+    vs.k = shrinkK([...vs.values()].map(([g, w]) => [w, g]), { min: 8 });
     return { syn, vs };
   }
 
