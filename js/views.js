@@ -1,4 +1,5 @@
 import { SLOTS, SLOT_LABEL, describe, actionFacts } from './kits.js';
+import { buildProfiles, PATTERNS, REF_LEVEL } from './profile.js';
 import { ROLES, STAT_LABELS, HIDDEN_LABELS, fmtMoney, pct, wr } from './model.js';
 import { esc, table, bar, statTone, num, link, select, setSort } from './ui.js';
 import { local } from './store.js';
@@ -346,6 +347,8 @@ export function meta(m) {
     { key: 'c', label: 'Champion', value: (x) => m.champName(x.c), html: (x) => champChip(m, x.c) },
     { key: 'cat', label: 'Class', value: (x) => m.champs[x.c].cat },
     { key: 'mainRole', label: 'Main role', value: (x) => x.mainRole, html: (x) => (x.picks ? ROLES[x.mainRole] : '–') },
+    ...(profiles(m) ? [{ key: 'kit', label: 'Plays as', value: (x) => profiles(m)[x.c]?.role[0] || '', html: (x) => esc(profiles(m)[x.c] ? patternName(profiles(m)[x.c].role[0]) : '–') },
+      { key: 'magic', label: 'Magic dmg', cls: 'num', value: (x) => profiles(m)[x.c]?.magicShare ?? -1, html: (x) => (profiles(m)[x.c] ? pct(profiles(m)[x.c].magicShare) : '–') }] : []),
     { key: 'picks', label: 'Picks', cls: 'num' },
     { key: 'pickRate', label: 'Pick %', cls: 'num', html: (x) => pct(x.pickRate, 1) },
     { key: 'banRate', label: 'Ban %', cls: 'num', html: (x) => pct(x.banRate, 1) },
@@ -368,6 +371,38 @@ export function gameFilesCard(app, why = '') {
     : `<p class="small">${why || 'Ability details come from your own copy of the game.'}</p>
       <div class="drop" data-action="pick-game"><strong>Choose bundle.game_data from the game folder</strong>${where}</div>`}
     <div id="game-status" class="status">${esc(app.gameStatus || '')}</div></div>`;
+}
+
+// Kit profiles, built once per set of kits.
+export function profiles(m) {
+  if (!m.kits) return null;
+  if (m._profKits !== m.kits) { m._prof = buildProfiles(m.kits); m._profKits = m.kits; }
+  return m._prof;
+}
+const patternName = (k) => PATTERNS[k].split(':')[0];
+
+function profileCard(m, c) {
+  const p = profiles(m)?.[c]; if (!p) return '';
+  const q = p.pct;
+  const axis = (label, v, note = '') => `<div class="statrow wide"><span>${label}</span>${bar(v, 1)}<span class="num muted small">${note || (v >= 0.67 ? 'high' : v >= 0.33 ? 'mid' : 'low')}</span></div>`;
+  const mag = Math.round(p.magicShare * 100);
+  const cc = Object.keys(p.cc).filter((k) => k !== 'slow');
+  return `<div class="card"><h2>Kit profile</h2>
+    <p class="muted small">Worked out from the kit at level ${REF_LEVEL}, before balance patches. Bars compare it with every other champion.</p>
+    <div class="kv"><span>Plays as</span><span><strong>${esc(patternName(p.role[0]))}</strong>, then ${esc(patternName(p.role[1]).toLowerCase())}</span></div>
+    <p class="small">${esc(PATTERNS[p.role[0]].split(': ')[1])}.</p>
+    <div class="kv"><span>Damage type</span><span class="num">${100 - mag}% physical · ${mag}% magic</span></div>
+    <div class="dmgsplit"><span class="phys" style="width:${100 - mag}%"></span><span class="magic" style="width:${mag}%"></span></div>
+    ${axis('Burst (one rotation)', q.burst, Math.round(p.burst) + ' dmg')}
+    ${axis('Damage over a fight', q.sustained, Math.round(p.sustained) + '/s')}
+    ${axis('Area damage', q.aoe)}
+    ${axis('Toughness', q.tank)}
+    ${axis('Crowd control', q.cc, cc.length ? esc(cc.join(', ')) : 'slows only')}
+    ${axis('Attack range', q.range, String(p.range))}
+    ${axis('Helps allies', q.support, p.healAllies || p.shieldAllies || p.buffAllies ? [p.healAllies && 'heals', p.shieldAllies && 'shields', p.buffAllies && 'buffs'].filter(Boolean).join(', ') : 'no')}
+    <div class="kv"><span>Gets in</span><span>${[p.mobility && 'dash or charge', p.untargetable && 'untargetable', p.stealth && 'stealth'].filter(Boolean).join(', ') || 'walks in'}</span></div>
+    ${p.threats.length ? `<h2>Threatens</h2><ul class="threats">${p.threats.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}
+  </div>`;
 }
 
 // ---------- champion ----------
@@ -426,7 +461,7 @@ export function champ(m, r, app) {
       <h2>Worst with</h2>${best(sy, -1)}
     </div>
   </div>
-  ${kitCard(m, c, app)}
+  ${m.kits?.[c] ? `<div class="grid two">${profileCard(m, c)}<div>${kitCard(m, c, app)}</div></div>` : kitCard(m, c, app)}
   <div class="grid two">
     <div class="card"><h2>Strong against</h2><p class="muted small">Win rate when facing these champions.</p>${best(vv, 1)}</div>
     <div class="card"><h2>Weak against</h2>${best(vv, -1)}</div>

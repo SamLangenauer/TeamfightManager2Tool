@@ -42,7 +42,7 @@ Each result you record counts as five pro games. The learned weights then scale 
 - Winners are read from the final score of each game. This agrees with series results about 96% of the time.
 - Potential and the other hidden traits are the true values stored in the save, not the scouted estimates the game shows you.
 - Champion data (names, roles, stats and skills) is in `data/champions.tsv`, taken from the game's data file.
-- Champion kits are not shipped with the site. Point the app at your own `bundle.game_data` once (load screen or any champion page; in Steam: Manage, then Browse local files). The app reads only the champion data from it, in your browser, and keeps it there until you read it again after a game update. Each champion page then shows every ability with its numbers filled in.
+- Champion kits are not shipped with the site. Point the app at your own `bundle.game_data` once (load screen or any champion page; in Steam: Manage, then Browse local files). The app reads only the champion data from it, in your browser, and keeps it there until you read it again after a game update. Each champion page then shows every ability with its numbers filled in, and a kit profile: how it plays (frontline, diver, backline carry, poke, bruiser, enchanter or control), its physical and magic damage split, burst, damage over a fight, area damage, toughness, crowd control, range, what it does for allies, and what it threatens. Profiles use base values at level 6. Against the save's season stats, the damage estimate ranks champions in close agreement with real damage dealt (rank correlation 0.64), and toughness with damage taken (0.63). Healing is only roughly estimated, because most of it comes from passives and items.
 
 ## Hosting on GitHub Pages
 
@@ -55,7 +55,7 @@ No build step. Plain ES modules:
 - `js/decoder.js` reads the save format (see the comments there).
 - `js/worker.js` decodes in a Web Worker.
 - `js/model.js` builds indexes and statistics.
-- `js/gamefiles.js` reads champion kits from the game's `bundle.game_data`; `js/kits.js` fills in ability descriptions.
+- `js/gamefiles.js` reads champion kits from the game's `bundle.game_data`; `js/kits.js` fills in ability descriptions; `js/profile.js` builds kit profiles.
 - `js/draft.js` is the draft engine; `js/draftview.js` is its page.
 - `js/views.js` holds the other pages.
 
