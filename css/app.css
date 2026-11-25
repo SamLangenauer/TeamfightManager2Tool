@@ -267,3 +267,59 @@ td span.pos { color: var(--win); } td span.neg { color: var(--loss); }
   .ask { flex: 1; height: 100%; }
   .ask-log { flex: 1; max-height: none; }
 }
+
+/* Compact suggestion cards: champion (locks it in), one short line, win chance. Click the card for the breakdown. */
+.dr-recs .rec { grid-template-columns: auto minmax(0, 1fr) auto; cursor: pointer; padding: 4px 8px; gap: 2px 8px; }
+.dr-recs .rec:has(.ask-why) { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+.dr-recs .rec:hover { border-color: color-mix(in srgb, var(--accent) 50%, var(--line)); }
+.dr-recs .rec.open { border-color: var(--accent); }
+.rec-tip { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rec-win { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 38px; text-align: right; }
+.rec-more { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 3px; cursor: default; padding-top: 2px; }
+.rec-more .parts { display: flex; flex-wrap: wrap; gap: 4px; }
+.dr-recs .rec-pick { padding: 2px 8px; }
+
+/* Role marks and the Matchup-style lineup lists */
+.role-ic { flex: none; color: var(--muted); vertical-align: middle; }
+.matchup { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+.mu-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.mu-row > span:last-child, .mu-row select { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mu-row select { max-width: 100%; flex: 1; }
+.mu-bar { width: 3px; align-self: stretch; min-height: 22px; border-radius: 2px; background: var(--us); flex: none; }
+.mu-row.them .mu-bar { background: var(--loss); }
+.mu-pt { width: 26px; height: 26px; display: inline-flex; align-items: flex-end; justify-content: center; flex: none; }
+.mu-pt .pt-full { width: 26px; height: 26px; }
+.lineups { max-width: 640px; }
+.lineups .matchup { gap: 10px 20px; }
+.lineups .mu-pt, .lineups .mu-pt .pt-full { width: 32px; height: 32px; }
+.mu-head { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 8px; }
+.slot-sub .role-ic { margin-right: -2px; }
+
+/* After the draft: result bar, then the game's Tactics and Item build screens in its order and layout */
+.result-bar { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; padding: 6px 10px; margin-bottom: 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel2); }
+.dr-subtabs { display: flex; gap: 4px; margin-right: 8px; }
+.dr-now.done { display: none; }
+.dr-subtabs button { border-radius: 6px; }
+.dr-subtabs button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.tactics-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1.25fr; gap: 8px; }
+.tactics-grid > div { background: var(--panel2); border-radius: 8px; padding: 6px 8px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tgroup h3 { font-size: 12.5px; margin: 0 0 3px; cursor: help; }
+.topts { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--line); border-radius: 6px; padding: 2px; }
+.topt { background: transparent; border: 0; border-radius: 4px; padding: 1px 6px; line-height: 1.35; font-size: 12.5px; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topt.on { background: var(--text); color: var(--bg); font-weight: 600; }
+.topt .star { color: var(--warn); }
+.tgroup .matchup { grid-template-columns: 1fr 1fr; gap: 3px 6px; font-size: 12px; }
+.tgroup .mu-pt, .tgroup .mu-pt .pt-full { width: 20px; height: 22px; }
+.tgroup .mu-row { gap: 4px; }
+.tgroup .matchup .role-ic { width: 13px; height: 13px; }
+table.loadout td { padding: 4px 8px; }
+table.loadout th { cursor: default; }
+table.loadout .bslot { display: block; text-align: left; margin: 0; padding: 4px 8px; }
+@media (max-width: 1000px) { .tactics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-height: 700px) and (min-width: 1001px) {
+  .dr-timeline .tl { padding: 1px 6px; } .tl-lab { font-size: 10px; }
+  .topt { line-height: 1.2; } .tactics-grid > div { gap: 3px; padding: 4px 8px; } .tgroup h3 { margin-bottom: 1px; }
+  .dr-now { padding: 0 10px; } .dr-step { font-size: 15px; }
+}
+.recs-head { white-space: nowrap; display: flex; justify-content: space-between; gap: 8px; padding: 0 8px 4px; }
+@media (min-width: 1001px) and (min-height: 560px) { .dr-recs { display: flex; flex-direction: column; } .dr-recs .recs { overflow-y: auto; min-height: 0; } }
