@@ -8,6 +8,7 @@
 const WANT = {
   sheet: 'champion_info_sheet asset/base/setting/champion_info',
   text: 'i18n asset/base/text/champion',
+  items: 'item_setting asset/base/setting/item_setting',
 };
 
 async function readEntries(file, wanted, onProgress) {
@@ -94,7 +95,21 @@ export function buildKits(sheetText, textText) {
   return out;
 }
 
+// Item lines in the order builds store them (slot value = line * 5 + tier), with each
+// tier's stats (only the numbers that are set).
+const LINE_CATS = ['AD', 'AttackSpeed', 'Defense', 'MagicResistance', 'Magic', 'Hp'];
+export function buildItems(itemText) {
+  const d = JSON.parse(itemText.replace(/^\uFEFF/, ''));
+  const lines = LINE_CATS.map((cat) => ({ cat, tiers: [] }));
+  for (const v of Object.values(d)) {
+    if (!v || typeof v !== 'object' || !v.stat) continue;
+    const li = LINE_CATS.indexOf(v.category); if (li < 0 || !(v.tier >= 0 && v.tier < 5)) continue;
+    lines[li].tiers[v.tier] = Object.fromEntries(Object.entries(v.stat).filter(([, x]) => typeof x === 'number' && x));
+  }
+  return lines;
+}
+
 export async function readGameFile(file, onProgress) {
   const e = await readEntries(file, WANT, onProgress);
-  return { kits: buildKits(e.sheet, e.text), size: file.size, modified: file.lastModified, readAt: Date.now() };
+  return { kits: buildKits(e.sheet, e.text), items: buildItems(e.items), size: file.size, modified: file.lastModified, readAt: Date.now() };
 }

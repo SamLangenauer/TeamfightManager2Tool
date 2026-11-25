@@ -4,6 +4,8 @@ import { esc, select } from './ui.js';
 import { local } from './store.js';
 import { learner, results } from './learn.js';
 import { recommendBuilds, recommendTactics, TACTICS, LINES, damageBucket, BUCKETS, planStats } from './gameplan.js';
+import { mathBuilds, stepReason, ITEM_LEVEL } from './items.js';
+import { profiles } from './views.js';
 
 let D = local.get('draft', null);
 let engine = null, engineKey = '';
@@ -155,15 +157,44 @@ export function draftView(m, r) {
     const us = { byRole: byRole('us') }, them = { byRole: byRole('them') };
     const plan = recommendTactics(m, us, them, results.all().filter((h) => h.us === D.us));
     const slotChips = (slots) => slots.map((v, k) => `<span class="bslot line-${LINES[v]?.key}" title="Builds into ${esc(LINES[v]?.items[4] || '')}"><span class="muted small">${k + 1}</span> ${esc(LINES[v]?.name || '?')}</span>`).join('');
+    const mathOn = !!(m.kits && m.items);
+    const ctx = mathOn ? { kits: m.kits, items: m.items, profiles: profiles(m) } : null;
+    // pro record for a set of lines in any order, as a second opinion
+    const proRecord = (c, lines) => {
+      const x = planStats(m).champ[c]; if (!x) return null;
+      const want = lines.slice().sort().join('-'); let g = 0, w = 0;
+      for (const [key, [n, k]] of x.builds) if (key.split('-').map(Number).sort().join('-') === want) { g += n; w += k; }
+      return { g, w };
+    };
+    let threatNote = '';
     const rows = us.byRole.map((c, r) => {
       if (!c) return '';
       const aid = engine.lineup.us[r];
       const b = recommendBuilds(m, c, r, st.them.picks);
+      const mb = ctx ? mathBuilds(ctx, c, st.them.picks) : null;
+      if (mb && !threatNote) {
+        const t = mb.threat;
+        threatNote = `Their draft deals about ${pct(t.physShare)} physical and ${pct(t.magicShare)} magic damage, ${pct(t.aaShare)} of it from basic attacks${t.divers ? `, with ${t.divers} champion${t.divers > 1 ? 's' : ''} that dive the backline` : ''}.`;
+      }
+      if (mb?.builds.length) {
+        const best = mb.builds[0]; const pr = proRecord(c, best.slots);
+        const alt = mb.builds.slice(1).map((x) => { const q = proRecord(c, x.slots); return `<div class="alt">${slotChips(x.slots)}${q?.g ? ` <span class="muted small">pros ${q.w}–${q.g - q.w}</span>` : ''}</div>`; }).join('');
+        const why = best.steps.map((st2, k) => `<li>${k + 1}. ${esc(stepReason(st2, mb.threat))}</li>`).join('');
+        const common = b.common ? b.common.key.split('-').map((v) => LINES[v].name).join(' → ') : null;
+        return `<tr><td>${ROLES[r]}</td><td>${aid != null ? esc(m.athletes[aid]?.name || '') : '<span class="muted">–</span>'}</td><td><a href="#/champ/${c}">${esc(m.champName(c))}</a></td>
+          <td><div>${slotChips(best.slots)}</div>
+          <details><summary class="small">Why this order</summary><ul class="why">${why}</ul></details>
+          <div class="muted small">Pros: ${pr?.g ? `won ${pr.w} of ${pr.g} games with these four items` : 'never used this set, so there is no game record to check it against'}${common ? `; their most common build is ${esc(common)}` : ''}.</div>
+          ${alt ? `<details><summary class="small">Next best</summary>${alt}</details>` : ''}</td></tr>`;
+      }
       const best = b.builds[0];
       const alt = b.builds.slice(1).map((x) => `<div class="alt">${slotChips(x.slots)} <span class="muted small">${pct((x.w + 5) / (x.g + 10))} in ${x.g}</span></div>`).join('');
       return `<tr><td>${ROLES[r]}</td><td>${aid != null ? esc(m.athletes[aid]?.name || '') : '<span class="muted">–</span>'}</td><td><a href="#/champ/${c}">${esc(m.champName(c))}</a></td>
         <td>${best ? `<div>${slotChips(best.slots)}</div><div class="muted small">Pros won ${best.w} of ${best.g} games with it${b.byRole ? ` as ${ROLES[r]}` : ''}${best.ge ? `, and ${best.we} of ${best.ge} in any role against ${b.bucketName} damage like theirs` : ''}.${b.common && b.common.key !== best.key ? ` Most common: ${esc(b.common.key.split('-').map((v) => LINES[v].name).join(' → '))}.` : ''}</div>${alt ? `<details><summary class="small">Other good builds</summary>${alt}</details>` : ''}` : '<span class="muted">Not enough pro games with this champion.</span>'}</td></tr>`;
     }).join('');
+    const buildIntro = mathOn
+      ? `Builds are worked out from each champion's kit: every possible set of four items is scored on the damage it adds after their armor and magic resist, and on how much longer it keeps you alive against their actual damage. Frontliners lean toward survival and carries toward damage. Slots are ordered so each one adds the most at that point. Stats are taken at level ${ITEM_LEVEL}. ${threatNote} In this save's pro games, builds change win rates very little, so treat this as a small edge.`
+      : `Builds are the four item slots, from what pro players set on each champion in this save and how those games went. Their damage is ${BUCKETS[damageBucket(m.champs, st.them.picks)]}. ${m.kits ? 'Read your game file again (load screen) to get builds worked out from each kit.' : 'Point the app at your game files (load screen) to get builds worked out from each kit instead.'}`;
     const tac = TACTICS.map((t) => {
       const rec = plan.tactics[t.key];
       const cur = D.tactics[t.key] || rec.choice;
@@ -173,7 +204,7 @@ export function draftView(m, r) {
     }).join('');
     return `<div class="card plan">
       <h2>Game plan</h2>
-      <p class="muted small">Set these on the tactics screen before the game. Builds are the four item slots, from what pro players set on each champion in this save and how those games went. Their damage is ${BUCKETS[damageBucket(m.champs, st.them.picks)]}. Change an enemy's role on the board if they ended up somewhere else, and this updates.</p>
+      <p class="muted small">Set these on the tactics screen before the game. ${buildIntro} Change an enemy's role on the board if they ended up somewhere else, and this updates.</p>
       ${planStats(m).hasItems ? '' : '<p class="error small">This save was opened with an older version of the app, so item builds are missing. Open the save file again to add them.</p>'}
       <div class="table-wrap"><table class="data"><thead><tr><th>Role</th><th>Player</th><th>Champion</th><th>Item build (slot 1 → 4)</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h2 style="margin-top:14px">Team tactics</h2>
