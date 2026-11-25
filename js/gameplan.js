@@ -199,12 +199,29 @@ export function recommendTactics(m, us, them, history = []) {
   if (rm && rm.team > 0.2) { pick('tower_press', 'dive', 'They out-reach you and you would lose a long siege, so commit when you go in.'); }
   if (rm && rm.team < -0.2 && out.tower_press.choice !== 'poking') pick('tower_press', 'poking', 'You out-reach them and they have little engage, so siege from range.');
 
-  // your own record with each choice
+  // Who should split push when a split option is set (the game then asks for one or two split pushers):
+  // side-lane duelling from the kit, the lane matchup in that role, a little escape, and the role's gold.
+  const ROLE_ADJ = [0.15, -0.1, 0.05, 0.05, -0.35];
+  const LANE = ['top', 'jungle', 'mid', 'bottom', 'support'];
+  const splitRank = us.byRole.map((c, r) => {
+    if (!c) return null;
+    const t = cm?.T[c];
+    const d = t ? t.duel : (duel(c) ? 0.8 : 0.3);
+    const ln = lane(r);
+    const score = d + ln * 1.5 + ROLE_ADJ[r] + (t ? t.evasive * 0.1 + (t.dive > 0.5 ? 0.05 : 0) : 0);
+    const bits = [];
+    if (t ? t.duel >= 0.6 : duel(c)) bits.push('can win fights alone'); else if (t && t.duel < 0.35) bits.push('weak alone');
+    if (ln > 0.03) bits.push(`wins the ${LANE[r]} matchup (${f(ln)})`); else if (ln < -0.03) bits.push(`loses the ${LANE[r]} matchup (${f(ln)})`);
+    if (t?.evasive) bits.push('can escape');
+    if (r === 4) bits.push('support gets the least gold');
+    return { r, c, score, why: `${name(c)}: ${bits.join(', ') || 'nothing stands out alone'}.` };
+  }).filter(Boolean).sort((a, b) => b.score - a.score);
+
   for (const t of TACTICS) {
     const rows = history.filter((h) => h.tactics && h.tactics[t.key] === out[t.key].choice && h.won != null);
     out[t.key].record = rows.length ? { g: rows.length, w: rows.filter((h) => h.won).length } : null;
   }
-  return { tactics: out, traits: { top, jg, mid, bot, lateUs, lateThem, fightUs, fightThem, poke, dive, theirDivers, ourCarries, kit, compUs: tu, compThem: tt, range: rm } };
+  return { tactics: out, traits: { splitRank, top, jg, mid, bot, lateUs, lateThem, fightUs, fightThem, poke, dive, theirDivers, ourCarries, kit, compUs: tu, compThem: tt, range: rm } };
 }
 
 // slots here are item lines (0..5), as returned by recommendBuilds
