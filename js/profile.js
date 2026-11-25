@@ -15,6 +15,11 @@ export function statsAt(kit, level = REF_LEVEL, bonus = {}) {
 }
 export const AOE_TARGETS = 1; // enemies an area ability is counted as hitting; season damage stats fit best at 1
 export const CRIT_MULT = 1.5; // the game files do not give the critical hit multiplier; 1.5 is assumed
+function statsAt(kit, level = REF_LEVEL) {
+  const s = {}; const g = kit.growth || {};
+  for (const k of ['attack', 'magic_power', 'hp', 'defence', 'magic_resistance', 'move_speed']) s[k] = (kit.stat?.[k] || 0) + (g[k] || 0) * (level - 1);
+  return s;
+}
 const words = { two: 2, twice: 2, three: 3, four: 4, five: 5, six: 6 };
 
 // Damage, heal and shield amounts written as "[type]flat[/] + [type]ratio% Stat[/]",
@@ -63,6 +68,7 @@ function hits(text, action) {
 }
 
 function basicAttack(kit, st, bonus = {}) {
+function basicAttack(kit, st) {
   const a = kit.attack || {};
   const dmg = { phys: 0, magic: 0 };
   const walk = (x) => {
@@ -87,12 +93,20 @@ export function profileOf(kit, opts = {}) {
   const st = statsAt(kit, opts.level || REF_LEVEL, bonus);
   const aa = basicAttack(kit, st, bonus);
   const cdMult = 1 - Math.min(40, bonus.skill_cooldown_mult || 0) / 100;
+  const cd = (a.cooltime || 60) / 60;
+  return { phys: dmg.phys / cd, magic: dmg.magic / cd, dps: (dmg.phys + dmg.magic) / cd, range: (a.range || 0) / 1000 };
+}
+
+export function profileOf(kit) {
+  const st = statsAt(kit);
+  const aa = basicAttack(kit, st);
   const p = {
     dmg: { phys: 0, magic: 0, true: 0 }, // estimated damage over a 10 s fight
     burst: 0, sustained: 0, heal: 0, healAllies: false, shield: 0, shieldAllies: false, buffAllies: false,
     cc: {}, hardCC: 0, mobility: 0, aoe: 0, untargetable: false, stealth: false, range: aa.range,
     ehpPhys: st.hp * (1 + st.defence / 100), ehpMagic: st.hp * (1 + st.magic_resistance / 100),
     abilities: {}, stats: st, aaDmg: aa.dps * 10, skillDmg: { phys: 0, magic: 0, true: 0 },
+    abilities: {},
   };
   // basic attacks over 10 s, as a share of the fight they keep landing
   p.sustained += aa.dps; p.dmg.phys += aa.phys * 10; p.dmg.magic += aa.magic * 10;
@@ -106,11 +120,16 @@ export function profileOf(kit, opts = {}) {
     const targets = /\b(all enemies|enemies within|enemies in|enemies hit|nearby enemies|in a cone|area|field)\b/.test(plain) && !/split between/.test(plain) ? AOE_TARGETS : 1;
     // casts in a 10 s fight: at least one, more for short cooldowns (ultimates once)
     const casts = slot === 'ult' || !cd ? 1 : opts.smooth ? Math.max(1, 10 / cd) : Math.max(1, Math.floor(10 / cd));
+    const cd = (action?.cooltime || 0) / 60;
+    const am = amounts(text, st); const n = hits(text, action);
+    // casts in a 10 s fight: at least one, more for short cooldowns (ultimates once)
+    const casts = slot === 'ult' || !cd ? 1 : Math.max(1, Math.floor(10 / cd));
     let dmg = 0; const ab = { cd, dmg: 0, kind: null };
     for (const x of am) {
       if (x.kind === 'phys' || x.kind === 'magic' || x.kind === 'true') {
         const v = x.value * n; dmg += v; ab.kind = ab.kind && ab.kind !== x.kind ? 'mixed' : x.kind;
         p.dmg[x.kind] += v * casts * targets; p.skillDmg[x.kind] += v * casts * targets;
+        p.dmg[x.kind] += v * casts;
       } else if (x.kind === 'heal') p.heal += x.value * (/every/.test(text) ? n : 1) * casts;
       else if (x.kind === 'shield') p.shield += x.value;
     }
