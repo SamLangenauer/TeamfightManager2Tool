@@ -12,6 +12,17 @@ import { compModel, teamComp, missingPieces, rangeMatchups, COMPS } from './comp
 import { askAvailable, askTab, askEvents, setAskContext, afterRender } from './askclaude.js';
 
 let D = local.get('draft', null);
+// Tactic options that make the game ask for split pushers, and how many.
+const SPLIT_N = { object_buildup: { split: 1 }, morgard_use: { split14: 1, split131: 2 } };
+// Split pushers for a tactic as set: your picks where you made them, otherwise the best-ranked players not already used.
+function pushersFor(key, choice, rank) {
+  const n = SPLIT_N[key]?.[choice] || 0; const out = [];
+  for (let i = 0; i < n; i++) {
+    const mine = D.tactics?.[`${key}_pusher${i}`];
+    out.push(mine != null && rank.some((x) => x.r === mine) ? mine : rank.find((x) => !out.includes(x.r))?.r ?? null);
+  }
+  return out;
+}
 const openRecs = new Set(); // suggestion cards opened to show their full breakdown, keyed by step and champion
 
 // Small role marks, drawn here (plain shapes, not the game's art).
@@ -237,11 +248,18 @@ export function draftView(m, r, app) {
     const plan = recommendTactics(m, us, them, results.all().filter((h) => h.us === D.us));
     const ptab = D.planTab || 'tactics';
     const T = Object.fromEntries(TACTICS.map((t) => [t.key, t]));
+    // The game asks for one or two split pushers under some options; show them the same way, best first.
+    const rank = plan.traits.splitRank;
+    const pusherRows = (key, choice) => {
+      const chosen = pushersFor(key, choice, rank); if (!chosen.length) return '';
+      const tip = 'Best split pushers, from the kits and lane matchups:\n' + rank.map((x, i) => `${i + 1}. ${ROLES[x.r]}, ${x.why}`).join('\n');
+      return chosen.map((r, i) => `<label class="tsub" title="${esc(tip)}"><span>Split Pusher</span>${r != null ? roleIcon(r) : ''}${select(`pusher-${key}-${i}`, rank.map((x, j) => [x.r, `${m.athletes[engine.lineup.us[x.r]]?.name || ROLES[x.r]} · ${m.champName(x.c)}${x.r === rank[i]?.r ? ' ★' : ''}`]), r ?? '', 'data-draft="pusher"')}</label>`).join('');
+    };
     const group = (key) => {
       const t = T[key]; const rec = plan.tactics[key]; const cur = D.tactics[key] || rec.choice;
       const why = rec.reason + (rec.record ? ` You are ${rec.record.w}–${rec.record.g - rec.record.w} when you used it.` : '');
       return `<div class="tgroup"><h3 title="${esc(why)}">${esc(t.name)} <span class="kit-q">ⓘ</span></h3><div class="topts">${Object.entries(t.opts).map(([k, v]) =>
-        `<button class="topt ${k === cur ? 'on' : ''}" data-action="tactic-set" data-k="${key}" data-v="${k}" title="${k === rec.choice ? 'Suggested. ' + esc(why) : 'Not the suggestion'}">${esc(v)}${k === rec.choice ? ' <span class="star">★</span>' : ''}</button>`).join('')}</div></div>`;
+        `<button class="topt ${k === cur ? 'on' : ''}" data-action="tactic-set" data-k="${key}" data-v="${k}" title="${k === rec.choice ? 'Suggested. ' + esc(why) : 'Not the suggestion'}">${esc(v)}${k === rec.choice ? ' <span class="star">★</span>' : ''}</button>`).join('')}</div>${pusherRows(key, cur)}</div>`;
     };
     const tactics = `<div class="tactics-grid">
       <div>${group('focused')}${group('early_jungle')}${group('early_serpen')}${group('early_serpen_top')}</div>
@@ -394,7 +412,9 @@ function currentTactics(m, st) {
   const byRole = (who) => { const out = [null, null, null, null, null]; const a = engine.assign(who, st[who].picks); st[who].picks.forEach((c, i) => { const r = a.roles[i]; if (r != null) out[r] = c; }); return out; };
   if (st.us.picks.length < 5 || st.them.picks.length < 5) return null;
   const plan = recommendTactics(m, { byRole: byRole('us') }, { byRole: byRole('them') });
-  return Object.fromEntries(TACTICS.map((t) => [t.key, D.tactics?.[t.key] || plan.tactics[t.key].choice]));
+  const out = Object.fromEntries(TACTICS.map((t) => [t.key, D.tactics?.[t.key] || plan.tactics[t.key].choice]));
+  for (const key of Object.keys(SPLIT_N)) pushersFor(key, out[key], plan.traits.splitRank).forEach((r, i) => { if (r != null) out[`${key}_pusher${i}`] = ROLES[r]; });
+  return out;
 }
 
 export function draftEvents(a, el, app) {
@@ -465,6 +485,7 @@ export function draftEvents(a, el, app) {
       if (el.value) { D.series.extra = D.series.extra || []; const who = D.seriesAddWho || 'them'; if (!D.series.extra.some((x) => x.c === el.value && x.who === who)) D.series.extra.push({ c: el.value, who }); save(); }
       return true;
     }
+    if (el.dataset.draft === 'pusher') { const [, key, i] = el.name.split('-'); D.tactics = D.tactics || {}; D.tactics[`${key}_pusher${i}`] = +el.value; save(); return true; }
     if (el.dataset.draft === 'tactic') { D.tactics = D.tactics || {}; D.tactics[el.name.slice(7)] = el.value; save(); return true; }
     if (el.dataset.draft === 'lineup') {
       const [, who, i] = el.name.split('-');

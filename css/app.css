@@ -323,3 +323,7 @@ table.loadout .bslot { display: block; text-align: left; margin: 0; padding: 4px
 }
 .recs-head { white-space: nowrap; display: flex; justify-content: space-between; gap: 8px; padding: 0 8px 4px; }
 @media (min-width: 1001px) and (min-height: 560px) { .dr-recs { display: flex; flex-direction: column; } .dr-recs .recs { overflow-y: auto; min-height: 0; } }
+/* split pusher picks under a tactic option, as the game shows them */
+.tsub { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; margin-top: 3px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 4px 2px 7px; font-size: 12px; color: var(--muted); }
+.tsub > span { white-space: nowrap; flex-basis: 100%; font-size: 11px; }
+.tsub select { flex: 1; min-width: 0; font-size: 12px; padding: 1px 4px; color: var(--text); }
