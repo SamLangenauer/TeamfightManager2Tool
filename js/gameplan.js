@@ -2,8 +2,11 @@
 // Builds come from what pro players set for each champion in this save and how
 // those games went. Tactics are rules applied to the draft: the save does not
 // record which tactics teams used in each game, so there is nothing to learn
-// them from except the results you record yourself.
+// them from except the results you record yourself. When the game files are
+// loaded, the rules read each champion's kit profile (crowd control, toughness,
+// area damage, range, dive and side-lane strength) instead of its tags.
 import { wr, ROLES } from './model.js';
+import { profilesFor } from './profile.js';
 
 // Item lines in the game's order. A build slot is stored as line * 5 + tier.
 export const LINES = [
@@ -109,13 +112,31 @@ export function recommendTactics(m, us, them, history = []) {
   };
   const top = lane(0), jg = lane(1), mid = lane(2), bot = (lane(3) + lane(4)) / 2;
   const lateUs = late(us), lateThem = late(them), scale = lateUs - lateThem;
-  const fight = (s) => list(s).filter((c) => hasCC(ch(c))).length + list(s).filter((c) => isTank(ch(c))).length * 0.5;
+  const P = profilesFor(m);
+  const pr = (c) => P?.[c];
+  const has = (c, r) => !!pr(c)?.role.includes(r);
+  const kit = !!P && list(us).every((c) => pr(c)) && list(them).every((c) => pr(c));
+  const name = (c) => m.champName ? m.champName(c) : ch(c)?.name;
+  // kit-based versions of the tag rules
+  const tanky = (c) => !!c && kit ? pr(c).role[0] === 'frontline' || pr(c).pct.tank > 0.75 : isTank(ch(c));
+  const duel = (c) => !!c && kit ? !!pr(c) && (has(c, 'bruiser') || has(c, 'diver')) && !has(c, 'enchanter') && pr(c).pct.sustained + pr(c).pct.tank > 1 : isDuelist(ch(c));
+  const fight = (s) => kit
+    ? list(s).reduce((a, c) => a + pr(c).pct.cc + 0.5 * pr(c).pct.tank + 0.5 * pr(c).pct.aoe, 0)
+    : list(s).filter((c) => hasCC(ch(c))).length + list(s).filter((c) => isTank(ch(c))).length * 0.5;
   const fightUs = fight(us), fightThem = fight(them);
-  const poke = list(us).filter((c) => isPoke(ch(c))).length;
-  const dive = list(us).filter((c) => isTank(ch(c)) || ch(c)?.cat === 'Assassin').length;
-  const duelists = [0, 2, 3].map((r) => us.byRole[r]).filter((c) => isDuelist(ch(c)));
+  const isPokeK = (c) => kit ? (pr(c).role[0] === 'poke' || pr(c).role[0] === 'backline') && pr(c).pct.range > 0.6 : isPoke(ch(c));
+  const poke = list(us).filter(isPokeK).length;
+  const diveK = (c) => kit ? has(c, 'diver') || (pr(c).role[0] === 'frontline' && pr(c).mobility > 0) : isTank(ch(c)) || ch(c)?.cat === 'Assassin';
+  const dive = list(us).filter(diveK).length;
+  const theirDivers = kit ? list(them).filter((c) => has(c, 'diver')).length : 0;
+  const ourCarries = kit ? list(us).filter((c) => pr(c).role[0] === 'backline' || pr(c).role[0] === 'poke').length : 0;
+  const duelists = [0, 2, 3].map((r) => us.byRole[r]).filter((c) => c && duel(c));
   const junglerCh = ch(us.byRole[1]);
   const topCh = ch(us.byRole[0]);
+  const jgK = pr(us.byRole[1]);
+  const ganker = kit && jgK ? jgK.mobility > 0 && (jgK.pct.burst > 0.6 || jgK.hardCC >= 2)
+    : junglerCh && (junglerCh.cat === 'Assassin' || (junglerCh.cat === 'Melee' && hasCC(junglerCh)));
+  const fightWhat = kit ? 'crowd control, toughness and area damage in the kits' : 'crowd control and frontline';
   const f = (x) => `${x >= 0 ? '+' : ''}${(x * 100).toFixed(0)}`;
   const out = {};
   const pick = (key, choice, reason) => { out[key] = { choice, reason }; };
@@ -124,7 +145,7 @@ export function recommendTactics(m, us, them, history = []) {
   else if (bot > top + 0.04 && bot > 0) pick('focused', 'bottom', `Your bottom lane matchup looks better (${f(bot)} vs ${f(top)} for top).`);
   else pick('focused', 'all', 'No lane stands out, so press everywhere.');
 
-  if (junglerCh && (junglerCh.cat === 'Assassin' || (junglerCh.cat === 'Melee' && hasCC(junglerCh))) && Math.max(top, mid, bot) > 0) pick('early_jungle', 'ganking', `${junglerCh.name} has the damage or crowd control to gank, and you have a lane worth helping.`);
+  if (ganker && Math.max(top, mid, bot) > 0) pick('early_jungle', 'ganking', `${junglerCh.name} has the ${kit ? (jgK.pct.burst > 0.6 ? 'gap closer and burst' : 'gap closer and crowd control') : 'damage or crowd control'} to gank, and you have a lane worth helping.`);
   else if (jg > 0.04 && scale <= 0) pick('early_jungle', 'counter_jungle', `${junglerCh?.name || 'Your jungler'} tends to beat their jungler (${f(jg)}).`);
   else pick('early_jungle', 'growth_and_cover', scale > 0 ? 'Your draft is better in long games, so farm and keep lanes safe.' : 'No clear early edge in the jungle, so farm and cover lanes.');
 
@@ -132,15 +153,15 @@ export function recommendTactics(m, us, them, history = []) {
   else if (bot < -0.03 && scale > 0) pick('early_serpen', 'giveup', 'Their bottom side is stronger and your draft scales, so do not fight for it early.');
   else pick('early_serpen', 'flexible', 'Neither side has a clear edge near Serpen.');
 
-  if (out.early_serpen.choice === 'must' && (isTank(topCh) || top < 0)) pick('early_serpen_top', 'must', `${topCh?.name || 'Your top laner'} gives up little by leaving lane.`);
-  else if (top > 0.03 && topCh && isDuelist(topCh)) pick('early_serpen_top', 'giveup', `${topCh.name} should keep winning top lane instead.`);
+  if (out.early_serpen.choice === 'must' && (tanky(us.byRole[0]) || top < 0)) pick('early_serpen_top', 'must', `${topCh?.name || 'Your top laner'} gives up little by leaving lane.`);
+  else if (top > 0.03 && topCh && duel(us.byRole[0])) pick('early_serpen_top', 'giveup', `${topCh.name} should keep winning top lane instead.`);
   else pick('early_serpen_top', 'flexible', 'Let the top laner judge it.');
 
-  if (duelists.length && fightUs <= fightThem) pick('object_buildup', 'split', `${duelists.map((c) => ch(c).name).join(' and ')} can pressure a side lane, and their teamfight is as strong as yours.`);
-  else if (fightUs > fightThem + 1) pick('object_buildup', 'gather', `Your teamfight is stronger (${fightUs.toFixed(1)} vs ${fightThem.toFixed(1)} on crowd control and frontline).`);
+  if (duelists.length && fightUs <= fightThem) pick('object_buildup', 'split', `${duelists.map(name).join(' and ')} can pressure a side lane, and their teamfight is as strong as yours.`);
+  else if (fightUs > fightThem + 1) pick('object_buildup', 'gather', `Your teamfight is stronger (${fightUs.toFixed(1)} vs ${fightThem.toFixed(1)} on ${fightWhat}).`);
   else pick('object_buildup', 'flexible', 'Teamfights look even.');
 
-  if (fightThem >= fightUs + 1) pick('object_finish', 'battle_priority', 'They have more engage, so be ready to fight when they contest.');
+  if (fightThem >= fightUs + 1) pick('object_finish', 'battle_priority', `They have more engage (${fightThem.toFixed(1)} vs ${fightUs.toFixed(1)} on ${fightWhat}), so be ready to fight when they contest.`);
   else pick('object_finish', 'kill_priority', 'Your fight is at least even, so finish the objective and pick off whoever contests.');
 
   if (scale > 0.01) pick('minion_wave', 'wave_priority', 'Your draft gets stronger in longer games, so keep farming waves.');
@@ -150,14 +171,15 @@ export function recommendTactics(m, us, them, history = []) {
   else if (scale > 0.01) pick('game_finish', 'stable', `You are stronger in long games (${f(scale)}), so there is no need to force it.`);
   else pick('game_finish', 'flexible', 'Neither draft clearly wins longer games.');
 
-  if (duelists.length >= 2) pick('morgard_use', 'split131', `${duelists.slice(0, 2).map((c) => ch(c).name).join(' and ')} can hold side lanes alone.`);
-  else if (duelists.length === 1) pick('morgard_use', 'split14', `${ch(duelists[0]).name} can hold a side lane alone.`);
+  if (duelists.length >= 2) pick('morgard_use', 'split131', `${duelists.slice(0, 2).map(name).join(' and ')} can hold side lanes alone.`);
+  else if (duelists.length === 1) pick('morgard_use', 'split14', `${name(duelists[0])} can hold a side lane alone.`);
   else pick('morgard_use', 'gather', 'Nobody on your team is built to hold a side lane alone.');
 
-  if (dive >= 3 && dive > poke) pick('tower_press', 'dive', `You have ${dive} tanks and assassins to dive with.`);
+  if (dive >= 3 && dive > poke) pick('tower_press', 'dive', `You have ${dive} ${kit ? 'divers and mobile frontliners' : 'tanks and assassins'} to dive with.`);
   else pick('tower_press', 'poking', poke >= 2 ? `You have ${poke} long-range damage dealers.` : 'Without enough divers, siege safely.');
 
-  if (fightUs >= fightThem && scale <= 0.01) pick('defense', 'battle', 'Your teamfight is at least as strong, so force fights when they split up.');
+  if (theirDivers >= 2 && ourCarries >= 2) pick('defense', 'gather', `They have ${theirDivers} divers and you have ${ourCarries} backline carries, so defend together and keep the carries covered.`);
+  else if (fightUs >= fightThem && scale <= 0.01) pick('defense', 'battle', 'Your teamfight is at least as strong, so force fights when they split up.');
   else pick('defense', 'gather', scale > 0.01 ? 'You outscale them, so defend safely and wait.' : 'Their teamfight is stronger, so defend together.');
 
   // your own record with each choice
@@ -165,7 +187,7 @@ export function recommendTactics(m, us, them, history = []) {
     const rows = history.filter((h) => h.tactics && h.tactics[t.key] === out[t.key].choice && h.won != null);
     out[t.key].record = rows.length ? { g: rows.length, w: rows.filter((h) => h.won).length } : null;
   }
-  return { tactics: out, traits: { top, jg, mid, bot, lateUs, lateThem, fightUs, fightThem, poke, dive } };
+  return { tactics: out, traits: { top, jg, mid, bot, lateUs, lateThem, fightUs, fightThem, poke, dive, theirDivers, ourCarries, kit } };
 }
 
 // slots here are item lines (0..5), as returned by recommendBuilds

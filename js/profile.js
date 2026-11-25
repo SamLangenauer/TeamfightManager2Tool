@@ -199,6 +199,13 @@ function threats(p) {
 }
 
 // Team view: damage split and what the five bring together.
+// Profiles for the loaded kits, built once per kit set and kept on the model.
+export function profilesFor(m) {
+  if (!m?.kits) return null;
+  if (m._profKits !== m.kits) { m._prof = buildProfiles(m.kits); m._profKits = m.kits; }
+  return m._prof;
+}
+
 export function teamProfile(profiles, picks) {
   const ps = picks.map((c) => profiles[c]).filter(Boolean);
   const dmg = { phys: 0, magic: 0, true: 0 };

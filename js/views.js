@@ -1,5 +1,5 @@
 import { SLOTS, SLOT_LABEL, describe, actionFacts } from './kits.js';
-import { buildProfiles, PATTERNS, REF_LEVEL } from './profile.js';
+import { profilesFor, PATTERNS, REF_LEVEL } from './profile.js';
 import { ROLES, STAT_LABELS, HIDDEN_LABELS, fmtMoney, pct, wr } from './model.js';
 import { esc, table, bar, statTone, num, link, select, setSort } from './ui.js';
 import { local } from './store.js';
@@ -374,11 +374,7 @@ export function gameFilesCard(app, why = '') {
 }
 
 // Kit profiles, built once per set of kits.
-export function profiles(m) {
-  if (!m.kits) return null;
-  if (m._profKits !== m.kits) { m._prof = buildProfiles(m.kits); m._profKits = m.kits; }
-  return m._prof;
-}
+export const profiles = (m) => profilesFor(m);
 const patternName = (k) => PATTERNS[k].split(':')[0];
 
 function profileCard(m, c) {
