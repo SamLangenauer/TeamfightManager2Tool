@@ -7,6 +7,7 @@ import * as V from './views.js';
 import { draftView, draftEvents } from './draftview.js';
 import { resultsView, resultsEvents } from './resultsview.js';
 import { combosView } from './comboview.js';
+import { nextView } from './nextview.js';
 
 const app = { model: null, png: null, champText: null };
 window.tfm2 = app; // handy for debugging in the console
@@ -16,7 +17,7 @@ const nav = document.getElementById('nav');
 
 const routes = {
   home: V.home, players: V.players, player: V.player, teams: V.teams, team: V.team,
-  scout: V.scout, meta: V.meta, champ: V.champ, games: V.games, game: V.game, draft: draftView, results: resultsView, combos: combosView,
+  scout: V.scout, meta: V.meta, champ: V.champ, games: V.games, game: V.game, draft: draftView, results: resultsView, combos: combosView, next: nextView,
 };
 
 function parseHash() {
