@@ -332,12 +332,12 @@ export function metaRows(m, f) {
   }
   const sorted = rows.slice().sort((a, b) => b.power - a.power);
   sorted.forEach((x, i) => { const q = i / sorted.length; x.tier = q < 0.1 ? 'S' : q < 0.3 ? 'A' : q < 0.6 ? 'B' : q < 0.85 ? 'C' : 'D'; });
-  return { games, rows };
+  return { games, rows, k: s.shrinkK };
 }
 
 export function meta(m) {
   const f = filt('meta', { patch: 'latest', league: '', role: '' });
-  const { games, rows } = metaRows(m, f);
+  const { games, rows, k } = metaRows(m, f);
   setSort('meta', 'power');
   return `
   <h1>Meta</h1>
@@ -346,7 +346,7 @@ export function meta(m) {
     ${select('league', leagueOptions(m), f.league, 'data-filter="meta"')}
     ${select('role', [['', 'All roles'], ...ROLES.map((r, i) => [i, r])], f.role, 'data-filter="meta"')}
   </div>
-  <p class="muted small">${games.length} games. Win % is raw; "Adj. win %" pulls small samples toward 50% so a 2–0 pick doesn't top the list. Tier ranks presence and adjusted win rate together.</p>
+  <p class="muted small">${games.length} games. Win % is raw; "Adj. win %" pulls small samples toward 50% so a 5–1 pick doesn't top the list. How hard it pulls is measured from these games (like adding ${Math.round(k ?? 10)} even games to each champion). Tier ranks presence and adjusted win rate together.</p>
   ${table('meta', rows, [
     { key: 'tier', label: 'Tier', value: (x) => 'SABCD'.indexOf(x.tier) * -1, html: (x) => `<span class="tier t-${x.tier}">${x.tier}</span>` },
     { key: 'c', label: 'Champion', value: (x) => m.champName(x.c), html: (x) => champChip(m, x.c) },
@@ -455,7 +455,7 @@ export function champ(m, r, app) {
   const games = m.filterGames({ patches: patchList(m, f.patch) });
   const s = m.champStats(games)[c];
   const { syn, vs } = m.pairStats(games);
-  const pairs = (map) => m.champIds.filter((x) => x !== c).map((x) => { const v = map.get(c + '|' + x) || [0, 0]; return { c: x, g: v[0], w: v[1], adj: wr(v[1], v[0], 8) }; }).filter((x) => x.g >= 3);
+  const pairs = (map) => m.champIds.filter((x) => x !== c).map((x) => { const v = map.get(c + '|' + x) || [0, 0]; return { c: x, g: v[0], w: v[1], adj: wr(v[1], v[0], map.k ?? 8) }; }).filter((x) => x.g >= 3);
   const sy = pairs(syn), vv = pairs(vs);
   const best = (list, dir) => list.slice().sort((a, b) => dir * (b.adj - a.adj)).slice(0, 8)
     .map((x) => `<div class="kv">${champChip(m, x.c)}<span class="num">${pct(x.w / x.g)} <span class="muted">in ${x.g}</span></span></div>`).join('') || '<span class="muted">Not enough games.</span>';
