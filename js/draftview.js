@@ -174,7 +174,7 @@ export function draftView(m, r) {
       const mb = ctx ? mathBuilds(ctx, c, st.them.picks) : null;
       if (mb && !threatNote) {
         const t = mb.threat;
-        threatNote = `Their draft deals about ${pct(t.physShare)} physical and ${pct(t.magicShare)} magic damage, ${pct(t.aaShare)} of it from basic attacks${t.divers ? `, with ${t.divers} champion${t.divers > 1 ? 's' : ''} that dive the backline` : ''}.`;
+        threatNote = `Their draft deals about ${pct(t.physShare)} physical and ${pct(t.magicShare)} magic damage, ${pct(t.aaShare)} of it from basic attacks${t.divers ? `, with ${t.divers} ${t.divers > 1 ? 'champions that dive' : 'champion that dives'} the backline` : ''}.`;
       }
       if (mb?.builds.length) {
         const best = mb.builds[0]; const pr = proRecord(c, best.slots);
@@ -208,7 +208,7 @@ export function draftView(m, r) {
       ${planStats(m).hasItems ? '' : '<p class="error small">This save was opened with an older version of the app, so item builds are missing. Open the save file again to add them.</p>'}
       <div class="table-wrap"><table class="data"><thead><tr><th>Role</th><th>Player</th><th>Champion</th><th>Item build (slot 1 → 4)</th></tr></thead><tbody>${rows}</tbody></table></div>
       <h2 style="margin-top:14px">Team tactics</h2>
-      <p class="muted small">★ is the suggestion. The save does not record which tactics teams used, so these come from rules applied to the draft: lane matchups between the champions in each role, which side is stronger in longer games, teamfight and range. Whatever you set here is saved with the result, so your record with each choice builds up.</p>
+      <p class="muted small">★ is the suggestion. The save does not record which tactics teams used, so these come from rules applied to the draft: lane matchups between the champions in each role, which side is stronger in longer games, ${plan.traits.kit ? 'and each kit: crowd control, toughness and area damage for teamfights, who can hold a side lane, who can dive, and their divers against your backline' : 'teamfight and range'}. Whatever you set here is saved with the result, so your record with each choice builds up.</p>
       <div class="table-wrap"><table class="data"><thead><tr><th>Setting</th><th>Choice</th><th>Why</th></tr></thead><tbody>${tac}</tbody></table></div>
     </div>`;
   }
