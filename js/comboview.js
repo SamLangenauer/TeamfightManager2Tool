@@ -1,12 +1,13 @@
 // Combos page: champion pairs and trios whose kits work together, with their pro record.
 import { esc, table, select } from './ui.js';
+import { face } from './portraits.js';
 import { pct } from './model.js';
 import { gameFilesCard, filtersFor } from './views.js';
 import { compModel } from './comps.js';
 import { allCombos, comboStats, kitLinks, LINKS } from './combos.js';
 import { results } from './learn.js';
 
-const chip = (m, c) => `<a class="chip cat-${(m.champs[c]?.cat || 'x').toLowerCase()}" href="#/champ/${c}">${esc(m.champName(c))}</a>`;
+const chip = (m, c) => `<a class="chip cat-${(m.champs[c]?.cat || 'x').toLowerCase()}" href="#/champ/${c}">${face(c)}${esc(m.champName(c))}</a>`;
 const signed = (x) => `${x >= 0 ? '+' : ''}${(x * 100).toFixed(1)}`;
 
 // one line per kind of link, strongest direction first
