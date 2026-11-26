@@ -20,8 +20,12 @@ const words = { two: 2, twice: 2, three: 3, four: 4, five: 5, six: 6 };
 // Damage, heal and shield amounts written as "[type]flat[/] + [type]ratio% Stat[/]",
 // or a ratio alone ("[phys]200% Attack Damage[/] as physical damage").
 const STAT = '(?:of )?(Attack Damage|AD|Attack|Ability Power|AP|Magic Power|maximum health)';
-const statBase = (name, st) => (/^(Attack Damage|AD|Attack)$/.test(name) ? st.attack : /^(Ability Power|AP|Magic Power)$/.test(name) ? st.magic_power : st.hp);
-function amounts(text, st) {
+const statKey = (name) => (/^(Attack Damage|AD|Attack)$/.test(name) ? 'ad' : /^(Ability Power|AP|Magic Power)$/.test(name) ? 'ap' : 'hp');
+const statBase = (name, st) => ({ ad: st.attack, ap: st.magic_power, hp: st.hp })[statKey(name)];
+// A ratio the data does not hold ({?Coef}% Ability Power) counts as UNKNOWN_RATIO when
+// opts.assumeRatio is set (the item math), so items for that stat still add something.
+export const UNKNOWN_RATIO = 60;
+function amounts(text, st, assume = 0) {
   const out = [];
   const classify = (kind, after) => {
     if (kind !== 'phys' && kind !== 'magic' && kind !== 'hp' && kind !== 'shield') {
@@ -35,11 +39,12 @@ function amounts(text, st) {
   let m; let masked = text;
   while ((m = pair.exec(text))) {
     const after = text.slice(pair.lastIndex, pair.lastIndex + 60);
-    out.push({ kind: classify(m[1], after), value: +m[2] + (m[4] != null ? +m[4] : 0) / 100 * statBase(m[5], st), at: m.index });
+    const scaled = (m[4] != null ? +m[4] : assume) / 100 * statBase(m[5], st);
+    out.push({ kind: classify(m[1], after), value: +m[2] + scaled, scaled, stat: statKey(m[5]), at: m.index });
     masked = masked.slice(0, m.index) + ' '.repeat(m[0].length) + masked.slice(m.index + m[0].length);
   }
   const lone = new RegExp(String.raw`\[(phys|magic)\]([\d.]+)% ${STAT}\[\/\](?=\s*(?:as\s*)?\[(?:phys|magic)\](?:physical|magic) damage)`, 'g');
-  while ((m = lone.exec(masked))) out.push({ kind: m[1], value: +m[2] / 100 * statBase(m[3], st), at: m.index });
+  while ((m = lone.exec(masked))) { const v = +m[2] / 100 * statBase(m[3], st); out.push({ kind: m[1], value: v, scaled: v, stat: statKey(m[3]), at: m.index }); }
   // flat heals written in words: "[hp]restoring 60 health[/]"
   const flatHeal = /\[hp\](?:restor\w*|heal\w*|recover\w*) (?:for )?([\d.]+) health\[\/\]/g;
   while ((m = flatHeal.exec(masked))) out.push({ kind: 'heal', value: +m[1], at: m.index });
@@ -93,6 +98,8 @@ export function profileOf(kit, opts = {}) {
     cc: {}, hardCC: 0, mobility: 0, aoe: 0, untargetable: false, stealth: false, range: aa.range,
     ehpPhys: st.hp * (1 + st.defence / 100), ehpMagic: st.hp * (1 + st.magic_resistance / 100),
     abilities: {}, stats: st, aaDmg: aa.dps * 10, skillDmg: { phys: 0, magic: 0, true: 0 },
+    // ability output (damage, heals, shields over the fight) that grows with each stat
+    scale: { ad: 0, ap: 0, hp: 0 }, skillOut: 0, mentions: { ad: 0, ap: 0 }, aaBuff: false,
   };
   // basic attacks over 10 s, as a share of the fight they keep landing
   p.sustained += aa.dps; p.dmg.phys += aa.phys * 10; p.dmg.magic += aa.magic * 10;
@@ -100,8 +107,11 @@ export function profileOf(kit, opts = {}) {
     const text = fillText(kit, slot); const action = actionFor(kit, slot);
     if (!text && !action) continue;
     const cd = (action?.cooltime || 0) / 60 * cdMult;
-    const am = amounts(text, st); const n = hits(text, action);
+    const am = amounts(text, st, opts.assumeRatio ? UNKNOWN_RATIO : 0); const n = hits(text, action);
     const plain = text.replace(/\[\/?\w*\]/g, '').toLowerCase();
+    // which stats the ability names as scaling, even where the data lacks the ratio ({?Coef}% Ability Power)
+    for (const mm of plain.matchAll(/%\s*(?:of )?(attack damage|ad|attack|ability power|ap|magic power)\b(?!\s*speed)/g)) p.mentions[/^(attack damage|ad|attack)$/.test(mm[1]) ? 'ad' : 'ap']++;
+    if (/attack speed|basic attacks? (deal|apply|hit|heal|also)|next (basic )?attack|on.hit/.test(plain)) p.aaBuff = true;
     // area abilities usually catch more than one enemy in a teamfight
     const targets = /\b(all enemies|enemies within|enemies in|enemies hit|nearby enemies|in a cone|area|field)\b/.test(plain) && !/split between/.test(plain) ? AOE_TARGETS : 1;
     // casts in a 10 s fight: at least one, more for short cooldowns (ultimates once)
@@ -111,8 +121,11 @@ export function profileOf(kit, opts = {}) {
       if (x.kind === 'phys' || x.kind === 'magic' || x.kind === 'true') {
         const v = x.value * n; dmg += v; ab.kind = ab.kind && ab.kind !== x.kind ? 'mixed' : x.kind;
         p.dmg[x.kind] += v * casts * targets; p.skillDmg[x.kind] += v * casts * targets;
-      } else if (x.kind === 'heal') p.heal += x.value * (/every/.test(text) ? n : 1) * casts;
-      else if (x.kind === 'shield') p.shield += x.value;
+        p.skillOut += v * casts * targets; if (x.stat) p.scale[x.stat] += x.scaled * n * casts * targets;
+      } else if (x.kind === 'heal') {
+        const k = (/every/.test(text) ? n : 1) * casts; p.heal += x.value * k;
+        p.skillOut += x.value * k; if (x.stat) p.scale[x.stat] += x.scaled * k;
+      } else if (x.kind === 'shield') { p.shield += x.value; p.skillOut += x.value; if (x.stat) p.scale[x.stat] += x.scaled; }
     }
     // life steal on the ability: "healing for 10% of the damage dealt"
     const ls = text.match(/heal\w* (?:for )?([\d.]+)% of (?:the )?damage/);

@@ -12,6 +12,14 @@
 // (a frontline values survival, a backline carry values damage) and shifts toward survival
 // when the enemy has divers that reach the backline or a pick draft, and a little for everyone against poke. Slots are then ordered greedily: each
 // slot takes the item that adds the most at that point.
+//
+// Damage lines are limited first to the ones that fit the champion (offenseFit). The game data
+// gives most mages a plain physical basic attack, and the fight math cannot see damage that
+// comes from summons or effects the descriptions leave unnumbered, so on its own it can put
+// AD and Attack Speed on a champion whose power is its abilities. With enough pro games, the
+// damage lines are the ones pros actually build on it (builds barely change pro win rates, so
+// their habits are a safe anchor); without them, the ones its kit scales with. Defensive lines
+// are always open: matching the enemy's damage is what the math is for.
 import { profileOf } from './profile.js';
 
 export const ITEM_LEVEL = 10; // full builds are a late-game question
@@ -51,7 +59,7 @@ function profileWith(kit, items, lines) {
   let m = memo.get(kit); if (!m) { m = new Map(); memo.set(kit, m); }
   const key = (lines.length && items ? '' : 'base') + lines.slice().sort().join('');
   if (m.itemsRef !== items && lines.length) { m.clear(); m.itemsRef = items; }
-  if (!m.has(key)) { const bonus = addStats(items, lines); m.set(key, { bonus, p: profileOf(kit, { level: ITEM_LEVEL, bonus, smooth: true }) }); }
+  if (!m.has(key)) { const bonus = addStats(items, lines); m.set(key, { bonus, p: profileOf(kit, { level: ITEM_LEVEL, bonus, smooth: true, assumeRatio: true }) }); }
   return m.get(key);
 }
 
@@ -94,14 +102,66 @@ export function buildScore({ kits, items, profiles, enemyComp }, c, lines, threa
 }
 export { COMBOS };
 
+const OFFENSE = [0, 1, 4]; // AD, Attack Speed, Magic
+export const PRO_MIN_BUILDS = 15; // pro builds needed before pro habits decide the damage lines
+const PRO_MIN_SHARE = 0.08; // a damage line pros put in fewer slots than this is left out
+
+// Which damage lines suit champion c. pro: { n, slots: [count per line] } from pro builds;
+// champ: the champion's row (cat, tags). Returns { lines: Set, source, why }.
+export function offenseFit(kit, champ, pro) {
+  const lines = new Set([2, 3, 5]);
+  if (pro && pro.n >= PRO_MIN_BUILDS) {
+    const tot = pro.slots.reduce((a, b) => a + b, 0) || 1;
+    const share = pro.slots.map((v) => v / tot);
+    for (const l of OFFENSE) if (share[l] >= PRO_MIN_SHARE) lines.add(l);
+    const used = OFFENSE.filter((l) => lines.has(l)), cut = OFFENSE.filter((l) => !lines.has(l));
+    const pc = (l) => `${LINE_NAMES[l]} ${Math.round(share[l] * 100)}%`;
+    // as many damage items as pros usually carry; the math picks which, and the defensive rest
+    const offSlots = Math.round(4 * used.reduce((t, l) => t + share[l], 0));
+    const why = `Pros put ${offSlots} damage item${offSlots === 1 ? '' : 's'} on it (${pro.n} builds: ${OFFENSE.map(pc).join(', ')} of slots)${cut.length ? `, so no ${cut.map((l) => LINE_NAMES[l]).join(' or ')}` : ''}. The other slots answer their damage.`;
+    return { lines, source: 'pro', why, share, offSlots };
+  }
+  const { p } = profileWith(kit, null, []);
+  const tags = champ?.tags || [];
+  const apOnly = tags.includes('AP') && !tags.includes('AD');
+  const adOnly = tags.includes('AD') && !tags.includes('AP');
+  const aaShare = p.aaDmg / Math.max(1, p.aaDmg + p.skillOut);
+  const out = p.skillOut || 1;
+  const adSkill = p.scale.ad / out >= 0.25 || p.mentions.ad > p.mentions.ap;
+  const apSkill = p.scale.ap / out >= 0.25 || (p.mentions.ap > 0 && p.mentions.ap >= p.mentions.ad);
+  const autos = !apOnly && (aaShare >= 0.5 || (p.aaBuff && aaShare >= 0.35));
+  if (autos) { lines.add(0); lines.add(1); }
+  if (adSkill && !apOnly) lines.add(0);
+  if (apSkill && !adOnly) lines.add(4);
+  if (p.dmg.magic > p.dmg.phys && !adOnly) lines.add(4);
+  if (tags.includes('AP')) lines.add(4);
+  if (!OFFENSE.some((l) => lines.has(l))) lines.add(apOnly ? 4 : 0);
+  const cut = OFFENSE.filter((l) => !lines.has(l));
+  const why = `Few pro builds, so damage items follow the kit: basic attacks are about ${Math.round(aaShare * 100)}% of its damage${apSkill ? ', abilities scale with Ability Power' : adSkill ? ', abilities scale with Attack Damage' : ''}${cut.length ? `, so no ${cut.map((l) => LINE_NAMES[l]).join(' or ')}` : ''}.`;
+  return { lines, source: 'kit', why, aaShare };
+}
+
+// Pro build counts per line for champion c, from planStats(m).champ[c].
+export function proLines(x) {
+  if (!x?.builds?.size) return null;
+  const slots = [0, 0, 0, 0, 0, 0]; let n = 0;
+  for (const [key, [g]] of x.builds) { n += g; for (const l of key.split('-')) if (slots[+l] != null) slots[+l] += g; }
+  return { n, slots };
+}
+
 // Best builds for champion c against the enemy picks.
-// Returns { builds: [{ slots, score, steps: [{ line, offenseGain, survivalGain }] }], threat, a }
-export function mathBuilds({ kits, items, profiles, enemyComp }, c, enemy, n = 3) {
+// Returns { builds: [{ slots, score, steps: [{ line, offenseGain, survivalGain }] }], threat, a, fit }
+export function mathBuilds({ kits, items, profiles, enemyComp, champs, pro }, c, enemy, n = 3) {
   const kit = kits?.[c]; if (!kit || !items) return null;
   const prof = profiles?.[c];
   const threat = enemyThreat(kits, profiles, enemy);
   const a = weightFor(prof, threat, enemyComp);
-  const scored = COMBOS.map((lines) => ({ lines, ...evaluate(kit, prof, items, lines, threat, a) })).sort((x, y) => y.score - x.score);
+  const fit = offenseFit(kit, champs?.[c], pro?.(c));
+  const offCount = (lines) => lines.filter((l) => OFFENSE.includes(l)).length;
+  // with pro data, carry as many damage items as pros do; from the kit, at least one unless it is a frontliner
+  const minOff = fit.offSlots ?? (prof?.role?.[0] === 'frontline' || !OFFENSE.some((l) => fit.lines.has(l)) ? 0 : 1);
+  const ok = (lines) => lines.every((l) => fit.lines.has(l)) && (fit.offSlots != null ? offCount(lines) === fit.offSlots : offCount(lines) >= minOff);
+  const scored = COMBOS.filter(ok).map((lines) => ({ lines, ...evaluate(kit, prof, items, lines, threat, a) })).sort((x, y) => y.score - x.score);
   const base = evaluate(kit, prof, items, [], threat, a);
   const builds = scored.slice(0, n).map((b) => {
     // order the slots: each slot takes the remaining item that adds the most now
@@ -114,7 +174,7 @@ export function mathBuilds({ kits, items, profiles, enemyComp }, c, enemy, n = 3
     }
     return { slots: chosen, score: b.score, offense: b.offense, survival: b.survival, steps };
   });
-  return { builds, threat, a, base };
+  return { builds, threat, a, base, fit };
 }
 
 // One plain sentence for a slot, from what it added at that point.
