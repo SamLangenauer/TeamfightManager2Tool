@@ -5,7 +5,7 @@ import { face } from './portraits.js';
 import { local } from './store.js';
 import { learner, results } from './learn.js';
 import { recommendBuilds, recommendTactics, TACTICS, LINES, damageBucket, BUCKETS, planStats } from './gameplan.js';
-import { mathBuilds, stepReason, ITEM_LEVEL } from './items.js';
+import { mathBuilds, stepReason, proLines, ITEM_LEVEL } from './items.js';
 import { profiles } from './views.js';
 import { compCard, kitReasons } from './compview.js';
 import { compModel, teamComp, missingPieces, rangeMatchups, COMPS } from './comps.js';
@@ -271,7 +271,7 @@ export function draftView(m, r, app) {
 
     const mathOn = !!(m.kits && m.items);
     const enemyTc = sides && compModel(m) ? teamComp(compModel(m), st.them.picks) : null;
-    const ctx = mathOn ? { kits: m.kits, items: m.items, profiles: profiles(m), enemyComp: enemyTc?.scores } : null;
+    const ctx = mathOn ? { kits: m.kits, items: m.items, profiles: profiles(m), enemyComp: enemyTc?.scores, champs: m.champs, pro: (c) => proLines(planStats(m).champ[c]) } : null;
     const proRecord = (c, lines) => {
       const x = planStats(m).champ[c]; if (!x) return null;
       const want = lines.slice().sort().join('-'); let g = 0, w = 0;
@@ -287,10 +287,10 @@ export function draftView(m, r, app) {
       const b = recommendBuilds(m, c, r, st.them.picks);
       const mb = ctx ? mathBuilds(ctx, c, st.them.picks) : null;
       if (mb && !threat) threat = mb.threat;
-      let slots = null, whys = [], note = '', alts = [];
+      let slots = null, whys = [], note = '', alts = [], fitWhy = '';
       if (mb?.builds.length) {
         const best = mb.builds[0]; const pr = proRecord(c, best.slots);
-        slots = best.slots; whys = best.steps.map((s2) => stepReason(s2, mb.threat));
+        slots = best.slots; whys = best.steps.map((s2) => stepReason(s2, mb.threat)); fitWhy = mb.fit?.why || '';
         note = pr?.g ? `Pros ${pr.w}–${pr.g - pr.w}` : 'Pros never used it';
         alts = mb.builds.slice(1).map((x) => { const q = proRecord(c, x.slots); return { slots: x.slots, note: q?.g ? `pros ${q.w}–${q.g - q.w}` : '' }; });
       } else if (b.builds[0]) {
@@ -298,7 +298,7 @@ export function draftView(m, r, app) {
         alts = b.builds.slice(1).map((x) => ({ slots: x.slots, note: `${pct((x.w + 5) / (x.g + 10))} in ${x.g}` }));
       }
       const common = b.common ? 'Most common pro build: ' + b.common.key.split('-').map((v) => LINES[v].name).join(' → ') : '';
-      return `<tr title="${esc([altTxt(alts), common].filter(Boolean).join('\n'))}">
+      return `<tr title="${esc([fitWhy, altTxt(alts), common].filter(Boolean).join('\n'))}">
         <td><div class="mu-row us">${roleIcon(r)}<span class="mu-bar"></span><span class="mu-pt">${face(c, 'full')}</span><span>${aid != null ? esc(m.athletes[aid]?.name || '') : '–'}<br><span class="muted small">${esc(m.champName(c))}</span></span></div></td>
         ${slots ? slots.map((v, k) => `<td>${slot(v, whys[k] || '')}</td>`).join('') : '<td colspan="4" class="muted small">Not enough pro games with this champion.</td>'}
         <td class="muted small">${esc(note)}</td></tr>`;
