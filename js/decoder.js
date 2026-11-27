@@ -98,6 +98,9 @@ export function decodeBody(body, champIds, progress = () => {}) {
   });
   progress('Leagues', 0.02);
 
+  // balance patch notes (champion changes and game rule changes)
+  try { out.patchNotes = decodePatches(body, champSet); } catch (e) { out.patchNotes = []; out.warnings.push('Patch notes: ' + e.message); }
+
   // teams: find team 0 as (slot 0, version v, id 0, name, logo, league)
   out.teams = decodeTeams(r, body);
   progress('Teams', 0.05);
@@ -141,6 +144,65 @@ function decodeTeams(r, b) {
   }
   teams.endOffset = at;
   return teams;
+}
+
+// ---- balance patches ----
+// Each in-game patch is stored as: version, Vec<added champion>, map champion -> Vec<change>,
+// map champion -> reasons ("nerf_meta_2,too_tanky_3"), then Vec<game rule change>.
+// A change is: u64, i18n key, Option<action>, old value, new value, a byte, Option<field>.
+// A rule change is: u64, a kind string, i18n key "...game_rule.kill_gold", old value, new value,
+// with a few flag bytes between entries, so each rule is found by its key.
+export function decodePatches(b, champSet) {
+  const r = new Reader(b), out = [], seen = new Set();
+  const end = Math.min(b.length - 16, 60e6);
+  for (let i = 0; i < end; i++) {
+    if (b[i] !== 8 || b[i + 8] !== 0x32 || b[i + 9] !== 0x30 || b[i + 12] !== 0x2e || b[i + 14] !== 0x2e) continue;
+    if (b[i + 1] | b[i + 2] | b[i + 3] | b[i + 4] | b[i + 5] | b[i + 6] | b[i + 7]) continue;
+    const t = new Reader(b, i);
+    try {
+      const opt = () => { const f = t.byte(); if (f === 0) return null; if (f !== 1) throw 0; return t.s(); };
+      const version = t.s();
+      const nAdd = t.u(); if (nAdd > 20) continue;
+      const added = []; for (let k = 0; k < nAdd; k++) added.push(t.s());
+      const nCh = t.u(); if (nCh > 100) continue;
+      const champions = {};
+      for (let k = 0; k < nCh; k++) {
+        const c = t.s(); if (!champSet.has(c)) throw 0;
+        const n = t.u(); if (n > 60) throw 0;
+        const list = [];
+        for (let e = 0; e < n; e++) {
+          t.u(); const key = t.s(); if (!key.startsWith('#asset/base/text/champion?')) throw 0;
+          const action = opt(), from = t.s(), to = t.s(); t.p++; const field = opt();
+          list.push({ key: key.split('?')[1], action, from, to, field });
+        }
+        champions[c] = list;
+      }
+      const nR = t.u(); if (nR > 100) throw 0;
+      const reasons = {};
+      for (let k = 0; k < nR; k++) { const c = t.s(); reasons[c] = t.s().split(',').filter(Boolean); }
+      const nG = t.u(); if (nG > 60) throw 0;
+      const rules = [];
+      let at = t.p;
+      for (let k = 0; k < nG; k++) {
+        const key = indexOf(b, KEY_RULE, at, at + 600); if (key < 0) throw 0;
+        let st = key; while (st > at && b[st] !== 0x23) st--; // back to the '#' that starts the key
+        const kr = new Reader(b, st - 8); const name = kr.s();
+        const from = kr.s(), to = kr.s();
+        rules.push({ rule: name.split('game_rule.')[1], from, to });
+        at = kr.p;
+      }
+      if (seen.has(version)) continue;
+      seen.add(version);
+      out.push({ version, added, champions, reasons, rules });
+    } catch { /* not a patch record */ }
+  }
+  return out.sort((a, b) => cmpVersion(a.version, b.version));
+}
+const KEY_RULE = new TextEncoder().encode('game_rule.');
+export function cmpVersion(a, b) {
+  const x = a.split('.').map(Number), y = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) - (y[i] || 0);
+  return 0;
 }
 
 // ---- athletes ----

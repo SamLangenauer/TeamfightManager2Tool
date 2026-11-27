@@ -57,6 +57,11 @@ export function resultsView(m) {
       <div class="kv"><span>Old hand-made formula</span><span class="num">${pct(e.hand.acc, 1)} right</span></div>
       <div class="kv"><span>Coin flip</span><span class="num">50.0% right</span></div>
       <div class="kv"><span>Log loss (lower is better)</span><span class="num">${e.learned.logloss.toFixed(3)} vs ${e.hand.logloss.toFixed(3)} vs ${e.coin.logloss.toFixed(3)}</span></div>
+      ${e.latest ? `<div class="kv"><span>On patch ${esc(e.latest.patch)} only (${e.latest.n} games)</span><span class="num">${pct(e.latest.acc, 1)} right</span></div>` : ''}
+      <h2 style="margin-top:14px">Does ${pct(0.7)} mean 70%?</h2>
+      <p class="muted small">Win chances are scaled toward 50% by ${((1 - e.temp) * 100).toFixed(0)}% on the log-odds, the amount that makes the newest games line up. How often the favourite won in those ${e.n} games:</p>
+      ${e.bands.filter((b) => b.n).map((b) => `<div class="kv"><span>Said ${pct(b.lo)}–${b.hi > 1 ? '100%' : pct(b.hi)} (${b.n} games, avg ${pct(b.said / b.n)})</span><span class="num">won <strong>${pct(b.won / b.n)}</strong></span></div>`).join('')}
+      <p class="muted small">The chance at the top of the Draft page counts both lineups (player skill and their champion practice). "Draft" next to it leaves the players out and rates the champions alone.</p>
       ${done.length ? `<h2 style="margin-top:14px">Your games</h2>
       <div class="kv"><span>Recorded</span><span class="num">${done.length} (${wins} won)</span></div>
       <div class="kv"><span>Called the winner</span><span class="num">${hit} of ${done.length}</span></div>

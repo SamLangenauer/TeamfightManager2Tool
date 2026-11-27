@@ -1,4 +1,5 @@
 import { DraftEngine } from './draft.js';
+import { PatchMeta, rulesByPatch, ruleName, LEAGUE_W, REGION_W } from './patchmeta.js';
 import { ROLES, pct } from './model.js';
 import { esc, select } from './ui.js';
 import { face } from './portraits.js';
@@ -54,10 +55,13 @@ function ensure(m, r) {
   }
   const latestBans = m.games.length ? m.games[m.games.length - 1].bans[0].length : 3;
   if (!D.bansPer) D.bansPer = latestBans || 3;
-  const key = [D.us, D.opp, D.patch].join('|');
+  D.league = D.league || 'mine';
+  const key = [D.us, D.opp, D.patch, D.league].join('|');
   if (!engine || key !== engineKey || engine.m !== m) {
-    const patches = D.patch === 'all' ? null : D.patch === 'latest' ? [m.patches[m.patches.length - 1]] : [D.patch];
-    engine = new DraftEngine(m, { us: D.us, them: D.opp, patches, learner: learner(m) });
+    // the latest patch (or the one chosen) first, older patches fading, your league counted extra
+    const league = D.league === 'mine' ? m.teams[D.us]?.league ?? null : null;
+    const pm = D.patch === 'all' ? null : new PatchMeta(m, { patch: D.patch === 'latest' ? null : D.patch, league });
+    engine = new DraftEngine(m, { us: D.us, them: D.opp, patches: null, pm, learner: learner(m) });
     engineKey = key;
     if (!D.lineup || D.lineup.key !== key) D.lineup = { key, us: engine.lineup.us, them: engine.lineup.them };
   }
@@ -89,6 +93,36 @@ function lockedSets() {
   return { us: all, them: all };
 }
 
+// What the patch in use changed, and how the changed champions are doing on it.
+function patchTab(m) {
+  const pm = engine.pm; const ch = pm.changes();
+  const rules = rulesByPatch(m)[pm.patch];
+  const st = engine.stats;
+  const ruleRows = rules && Object.keys(rules.rules).length ? Object.entries(rules.rules).map(([k, v]) => {
+    const changed = rules.changes.find((r) => r.rule === k);
+    return `<tr><td>${esc(ruleName(k))}</td><td class="num">${v.base}</td><td class="num"><strong>${v.now}</strong></td><td class="num ${v.now > v.base ? 'pos' : 'neg'}">${v.now > v.base ? '+' : ''}${((v.now / v.base - 1) * 100).toFixed(0)}%</td><td class="muted small">${changed ? 'changed this patch' : 'since an earlier patch'}</td></tr>`;
+  }).join('') : '';
+  const avg = (games, f) => games.length ? games.reduce((a, g) => a + f(g), 0) / games.length : null;
+  const before = m.games.filter((g) => pm.age(g) === 1);
+  const gold = (g) => g.sum[0].gold.reduce((a, b) => a + b, 0) + g.sum[1].gold.reduce((a, b) => a + b, 0);
+  const kills = (g) => g.sum[0].kills + g.sum[1].kills;
+  const fmtN = (v) => (v == null ? '–' : Math.round(v).toLocaleString());
+  const champRows = ch ? ch.champs.map((x) => {
+    const s = st[x.c]; const rec = s && s.curGames ? `${Math.round(s.curWins)}–${Math.round(s.curGames - s.curWins)}` : '–';
+    return `<tr><td>${face(x.c)}${esc(m.champName(x.c))}</td><td class="${x.dir > 0 ? 'pos' : x.dir < 0 ? 'neg' : ''}">${x.dir > 0 ? 'Buffed' : x.dir < 0 ? 'Nerfed' : 'Changed'}${x.dir ? ` ${x.dir > 0 ? '+' : ''}${x.dir}` : ''}</td><td class="small">${esc(x.reasons.join(', '))}</td>
+      <td class="small">${x.list.map((e) => `${esc((e.action ? e.action + ' ' : '') + (e.field || e.key).replace(/^(stat|growth):/, '$1 '))} ${esc(e.from)}→${esc(e.to)}`).join(', ')}</td>
+      <td class="num">${s ? pct(s.prior) : '–'}</td><td class="num">${rec}</td><td class="num"><strong>${s ? pct(s.adjWin) : '–'}</strong></td></tr>`;
+  }).join('') : '';
+  const lg = pm.league != null ? m.league(pm.league) : null;
+  return `<div class="patch-tab">
+    <p class="small">Suggestions use <strong>${pm.current.length}</strong> pro games on patch ${esc(pm.patch)}. Older patches still count, half as much for each patch back, so a champion's strength moves toward its new record as games come in. ${lg ? `Games in ${esc(lg.label)} count ${LEAGUE_W}×, and other ${esc(lg.regionName)} games ${REGION_W}×.` : 'Every league counts the same.'}</p>
+    ${ruleRows ? `<h3>Game rules</h3><div class="table-wrap"><table class="data"><thead><tr><th>Rule</th><th class="num">Original</th><th class="num">Now</th><th class="num">Change</th><th></th></tr></thead><tbody>${ruleRows}</tbody></table></div>
+      <p class="muted small">Pro games on this patch: ${fmtN(avg(pm.current, gold))} gold and ${avg(pm.current, kills)?.toFixed(1) ?? '–'} kills a game${before.length ? `, against ${fmtN(avg(before, gold))} and ${avg(before, kills).toFixed(1)} on the patch before` : ''}.</p>` : '<p class="muted small">No game rule changes yet.</p>'}
+    ${champRows ? `<h3>Champion changes</h3><div class="table-wrap"><table class="data"><thead><tr><th>Champion</th><th>Change</th><th>Why</th><th>What changed</th><th class="num" title="What older patches said, moved by the patch note">Expected</th><th class="num">This patch</th><th class="num" title="The strength suggestions use">Strength</th></tr></thead><tbody>${champRows}</tbody></table></div>
+      <p class="muted small">Expected is the win rate from older patches, moved about 4 points for each level of buff or nerf: in this save's past patches the notes called the direction of the change right most of the time (correlation 0.65).</p>` : ''}
+  </div>`;
+}
+
 function stateFrom(steps) {
   const st = { us: { picks: [], bans: [] }, them: { picks: [], bans: [] } };
   D.entries.forEach((c, i) => {
@@ -107,7 +141,8 @@ export function draftView(m, r, app) {
   const step = steps[cur];
   const st = stateFrom(steps);
   const ourTurn = step && step.side === D.side;
-  const patchOpts = [['latest', 'Latest patch'], ['all', 'All patches'], ...m.patches.map((p) => [p, `Patch ${p}`])];
+  const patchOpts = [['latest', `Latest patch (${m.patches[m.patches.length - 1]}), older ones fading`], ['all', 'All patches counted the same'], ...m.patches.map((p) => [p, `Patch ${p}, older ones fading`])];
+  const leagueOpts = [['mine', `Count ${m.league(m.teams[D.us]?.league)?.label || 'your league'} extra`], ['all', 'All leagues the same']];
   const teamOpts = m.teams.map((t) => [t.id, t.name]).sort((a, b) => a[1].localeCompare(b[1]));
 
   let recs = [], label = 'Draft complete';
@@ -119,6 +154,9 @@ export function draftView(m, r, app) {
   const L = learner(m);
   const predictFor = (usPicks, themPicks) => L.predict({ us: usPicks, them: themPicks, lineupUs: engine.lineup.us, lineupThem: engine.lineup.them, sideA: D.side === 'A', roles: D.roles });
   const out = predictFor(st.us.picks, st.them.picks);
+  // the same, with both lineups left out: what the champions alone are worth
+  const none = [null, null, null, null, null];
+  const draftOnly = L.predict({ us: st.us.picks, them: st.them.picks, lineupUs: none, lineupThem: none, sideA: D.side === 'A', roles: D.roles });
   const recorded = D.recorded ? results.all().find((x) => x.id === D.recorded) : null;
   const assigned = { us: engine.assign('us', st.us.picks), them: engine.assign('them', st.them.picks) };
 
@@ -207,6 +245,12 @@ export function draftView(m, r, app) {
 
   const partLabel = { patchStrength: 'Strength this patch', proBans: 'Teams ban it this patch', denySeries: 'Gone for them all series', saveForLater: 'Save for later games', meta: 'Meta', fit: 'Player and role fit', synergy: 'Synergy with your picks', counter: 'Against their picks', comp: 'Team composition', habit: 'Team habit', deny: 'Denies them', threat: 'Their pick value', comfortPick: 'Their comfort pick', oftenBannedVsThem: 'Usually banned vs them', ownLoss: 'You lose it too', yours: 'Your results' };
   const canAsk = askAvailable();
+  const patchLine = (c) => {
+    const x = engine.stats[c]; if (!engine.pm || !x) return '';
+    const note = engine.pm.changes()?.champs.find((y) => y.c === c);
+    const rec = x.curGames ? `${Math.round(x.curWins)}–${Math.round(x.curGames - x.curWins)} on this patch` : 'no games on this patch yet';
+    return `<div class="small muted">Strength ${pct(x.adjWin)} (${rec}${note ? `; patch notes: ${note.dir > 0 ? 'buffed' : note.dir < 0 ? 'nerfed' : 'changed'}${note.reasons.length ? ', ' + esc(note.reasons.join(', ')) : ''}` : ''})</div>`;
+  };
   // Compact suggestion: the champion (click to lock in), one short line, and the win chance.
   // Click anywhere else on the card to open the full breakdown.
   const recList = recs.map((x, k) => {
@@ -226,6 +270,7 @@ export function draftView(m, r, app) {
       <span class="rec-win" title="${after != null ? `Your win chance if ${ourTurn ? 'you pick' : 'they pick'} this` : 'Ban score'}">${after != null ? pct(after) : x.total.toFixed(0)}</span>
       ${open ? `<div class="rec-more">
         <div class="small muted">#${k + 1} · ${esc(ch.cat)} · score ${x.total.toFixed(1)}${x.role != null ? ` · ${ROLES[x.role]}${p ? ' for ' + esc(p.name) : ''}` : ''}</div>
+        ${patchLine(x.c)}
         <div class="parts">${parts.map(([k2, v]) => `<span class="part ${v >= 0 ? 'pos' : 'neg'}">${partLabel[k2] || k2} ${v >= 0 ? '+' : ''}${v.toFixed(1)}</span>`).join('')}</div>
         ${kr.length ? `<div class="parts kit">${kr.map((k3) => `<span class="part kitr ${k3.pos ? 'pos' : 'neg'}">${esc(k3.text)}</span>`).join('')}</div>` : ''}
       </div>` : ''}
@@ -345,6 +390,7 @@ export function draftView(m, r, app) {
     ['pick', step ? 'Suggestions' : 'Result and game plan'],
     ['comp', `Compositions${rangeWarn ? ` <span class="warn-dot" title="Range warnings">${rangeWarn}</span>` : ''}`],
     ['lineup', 'Lineups'],
+    ...(engine.pm ? [['patch', `Patch ${esc(engine.pm.patch)}`]] : []),
     ['settings', `Settings${D.fearless !== 'off' ? ' and series' : ''}`],
   ];
   if (canAsk) tabs.splice(1, 0, ['ask', 'Ask Claude']);
@@ -368,6 +414,8 @@ export function draftView(m, r, app) {
     queueMicrotask(afterRender);
   } else if (tab === 'comp') {
     body = sides ? (compCard(m, sides) || '<p class="muted">Compositions fill in once champions are picked.</p>') : '<p class="muted">Compositions need champion kits. Point the app at your game files on the load screen.</p>';
+  } else if (tab === 'patch') {
+    body = patchTab(m);
   } else if (tab === 'lineup') {
     body = `<div class="lineups"><div class="mu-head"><strong>${esc(m.teamName(D.us))}</strong><strong>${esc(m.teamName(D.opp))}</strong></div>${matchup(true)}</div>
       <p class="muted small">Who plays each role, listed like the game's Matchup panel. Suggestions use these players' champion skill and role fit.</p>`;
@@ -376,10 +424,11 @@ export function draftView(m, r, app) {
       <label>Bans each ${select('bansPer', [[1, '1'], [2, '2'], [3, '3'], [4, '4'], [5, '5']], D.bansPer, 'data-draft="setup"')}</label>
       <label>Pick order ${select('order', [['snake', 'A B B A A B B A A B'], ['alt', 'A B A B A B A B A B']], D.order, 'data-draft="setup"')}</label>
       <label>Data ${select('patch', patchOpts, D.patch, 'data-draft="setup"')}</label>
+      ${D.patch !== 'all' ? `<label>League ${select('league', leagueOpts, D.league, 'data-draft="setup"')}</label>` : ''}
       <label>Fearless ${select('fearless', [['off', 'Off'], ['hard', 'Hard (nobody repicks)'], ['soft', 'Soft (own picks only)']], D.fearless, 'data-draft="setup"')}</label>
       ${D.fearless !== 'off' ? `<label>Best of ${select('bestOf', [[3, '3'], [5, '5'], [7, '7']], D.series.bestOf, 'data-draft="setup"')}</label>` : ''}
     </div>
-    <p class="muted small">Suggestions are based on ${engine.games.length} pro games. The win chance comes from a model trained on ${L.pro.length} pro games${L.mine.length ? ` and ${L.mine.length} of your results` : ''}. <a href="#/results">How it learns</a></p></div>
+    <p class="muted small">Suggestions are based on ${engine.pm ? `${engine.pm.current.length} pro games on patch ${esc(engine.pm.patch)}, with ${engine.games.length - engine.pm.current.length} games from older patches counting less the older they are` : `${engine.games.length} pro games`}. The win chance comes from a model trained on ${L.pro.length} pro games${L.mine.length ? ` and ${L.mine.length} of your results` : ''}. <a href="#/results">How it learns</a></p></div>
     ${seriesBar()}`;
   }
 
@@ -389,7 +438,7 @@ export function draftView(m, r, app) {
     <label>vs ${select('opp', teamOpts, D.opp, 'data-draft="setup"')}</label>
     <label>Side ${select('side', [['A', 'A (first pick)'], ['B', 'B']], D.side, 'data-draft="setup"')}</label>
     ${fearlessTag}
-    <span class="dr-win" title="Win chance for ${esc(m.teamName(D.us))}, from a model trained on ${L.pro.length} pro games${L.mine.length ? ` and ${L.mine.length} of your results` : ''}">Win chance <span class="bar"><span style="width:${Math.round(out * 100)}%"></span></span><strong>${pct(out)}</strong></span>
+    <span class="dr-win" title="Win chance for ${esc(m.teamName(D.us))}, from a model trained on ${L.pro.length} pro games${L.mine.length ? ` and ${L.mine.length} of your results` : ''}">Win chance <span class="bar"><span style="width:${Math.round(out * 100)}%"></span></span><strong>${pct(out)}</strong><span class="muted small" title="Win chance from the champions alone, with both lineups left out">draft ${pct(draftOnly)}</span></span>
     <span class="spacer"></span>
     <button class="ghost" data-action="draft-undo" ${cur ? '' : 'disabled'} title="Take back the last ban or pick">Undo</button>
     <button class="ghost" data-action="draft-reset" title="Clear this draft">Reset</button>
@@ -469,7 +518,7 @@ export function draftEvents(a, el, app) {
       if (el.name === 'bestOf') { D.series.bestOf = +v; save(); return true; }
       if (el.name === 'fearless') { D.fearless = v; save(); return true; }
       if (el.name === 'us' || el.name === 'opp' || el.name === 'bansPer') D[el.name] = +v; else D[el.name] = v;
-      if (el.name !== 'patch') { D.entries = []; D.recorded = null; }
+      if (el.name !== 'patch' && el.name !== 'league') { D.entries = []; D.recorded = null; }
       if (el.name === 'us' || el.name === 'opp') D.series = { bestOf: D.series?.bestOf || 3, games: [], extra: [] };
       if (el.name === 'us' || el.name === 'opp') D.lineup = null;
       save(); return true;
