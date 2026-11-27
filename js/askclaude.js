@@ -47,7 +47,13 @@ export function draftContext(x) {
   const lines = [];
   const usName = m.teamName(D.us), themName = m.teamName(D.opp);
   const patch = D.patch === 'latest' ? `latest patch (${m.patches[m.patches.length - 1]})` : D.patch === 'all' ? 'all patches' : `patch ${D.patch}`;
-  lines.push(`SAVE: in-game date ${m.db.date}. Draft stats use ${patch}: ${engine.games.length} pro games.`);
+  const pm = engine.pm;
+  lines.push(pm ? `SAVE: in-game date ${m.db.date}. Draft stats use patch ${pm.patch}: ${pm.current.length} pro games on it, older patches counting half as much per patch back${pm.league != null ? `, games in ${m.league(pm.league)?.label} counted 3x` : ''}. Champion strength (adj) = this patch's record pulled toward older patches, shifted for patch-note buffs and nerfs.` : `SAVE: in-game date ${m.db.date}. Draft stats use ${patch}: ${engine.games.length} pro games.`);
+  const ch = pm?.changes();
+  if (ch) {
+    if (ch.rules.length) lines.push(`PATCH ${ch.version} RULES: ${ch.rules.map((r) => `${r.rule} ${r.from}->${r.to}`).join(', ')}.`);
+    lines.push(`PATCH ${ch.version} CHAMPIONS: ${ch.champs.map((x) => `${m.champName(x.c)} ${x.dir > 0 ? 'buffed' : x.dir < 0 ? 'nerfed' : 'changed'} (${x.reasons.join(', ')})`).join('; ')}.`);
+  }
   lines.push(`MATCH: ${usName} (us, side ${D.side}${D.side === 'A' ? ', first pick' : ''}) vs ${themName}. ${D.bansPer} bans each, pick order ${D.order === 'snake' ? 'A B B A A B B A A B' : 'alternating'}.${D.fearless !== 'off' ? ` Fearless ${D.fearless}, game ${D.series.games.length + 1} of best of ${D.series.bestOf}; locked for us: ${[...engine.locked.us].map((c) => m.champName(c)).join(', ') || 'none'}; locked for them: ${[...engine.locked.them].map((c) => m.champName(c)).join(', ') || 'none'}.` : ''}`);
   const tl = steps.map((s, i) => {
     const who = s.side === D.side ? 'Us' : 'Them'; const c = D.entries[i];

@@ -38,14 +38,21 @@ export function compScore(champs, mine, c) {
 
 
 export class DraftEngine {
-  constructor(model, { us, them, patches, learner = null }) {
-    this.m = model; this.us = us; this.them = them; this.learner = learner;
-    let games = model.filterGames({ patches });
-    if (games.length < 200) games = model.games; // too few games on this patch: use everything
-    this.games = games;
-    this.stats = model.champStats(games);
-    const { syn, vs } = model.pairStats(games);
-    this.syn = syn; this.vs = vs;
+  // pm: a PatchMeta (patch and league aware). Without it, `patches` picks the games to use as they are.
+  constructor(model, { us, them, patches = null, pm = null, learner = null }) {
+    this.m = model; this.us = us; this.them = them; this.learner = learner; this.pm = pm;
+    if (pm) {
+      this.games = pm.games;
+      this.stats = pm.champStats();
+      const { syn, vs } = pm.pairStats();
+      this.syn = syn; this.vs = vs;
+    } else {
+      const games = model.filterGames({ patches });
+      this.games = games;
+      this.stats = model.champStats(games);
+      const { syn, vs } = model.pairStats(games);
+      this.syn = syn; this.vs = vs;
+    }
     this.tend = { us: model.teamTendencies(us, model.games), them: model.teamTendencies(them, model.games) };
     this.teamGames = { us: model.teamGames.get(us)?.length || 0, them: model.teamGames.get(them)?.length || 0 };
     this.lineup = { us: (model.starters.get(us) || []).slice(), them: (model.starters.get(them) || []).slice() };

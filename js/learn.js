@@ -4,6 +4,7 @@
 import { wr } from './model.js';
 import { PERMS, compScore } from './draft.js';
 import { local } from './store.js';
+import { PatchMeta, PATCH_DECAY, PRIOR_K, TAG_SHIFT, LEAGUE_W, REGION_W, noteDirection } from './patchmeta.js';
 
 export const FEATURES = [
   { key: 'fit', label: 'Player and role fit' },
@@ -17,7 +18,9 @@ export const FEATURES = [
 // How much each feature counts in the hand-made suggestion scores, in log-odds per unit.
 // The learned weight divided by this becomes a multiplier on that part of a suggestion.
 const HAND = { fit: 1, meta: 2.67, synergy: 2.67, counter: 1.33, comp: 0.22 };
-export const YOUR_WEIGHT = 5; // one of your recorded games counts as this many pro games
+export const YOUR_WEIGHT = 5;
+const ROW_DECAY = 0.8; // each older patch counts this much less when training
+ // one of your recorded games counts as this many pro games
 
 const sigmoid = (z) => 1 / (1 + Math.exp(-z));
 export const results = {
@@ -32,12 +35,19 @@ export class Learner {
     const { syn, vs } = m.pairStats(m.games);
     this.syn = syn; this.vs = vs;
     this.comfortCache = new Map();
+    // champion strength as it stood when each game was played (its own patch, its league)
+    this.gameStr = prefixStrength(m);
+    // and as it stands now, for your drafts: the latest patch, your league
+    this.now = new PatchMeta(m, { league: m.myTeam != null ? m.teams[m.myTeam]?.league ?? null : null });
     this.pro = [];
     for (const g of m.games) {
       const lineup = g.players.map((side) => { const l = [null, null, null, null, null]; side.forEach((p) => { if (p && p.slot < 5) l[p.slot] = p.aid; }); return l; });
       const x = this.features({ picks: [g.picks[0], g.picks[1]], lineup, sideA: true, exclude: g });
-      this.pro.push({ x, y: g.winner === 0 ? 1 : 0, g });
+      this.pro.push({ x, y: g.winner === 0 ? 1 : 0, g, wt: 1 });
     }
+    // recent patches teach the model more than old ones
+    const age = new Map(m.patches.map((p, i) => [p, m.patches.length - 1 - i]));
+    for (const r of this.pro) r.wt = Math.max(ROW_DECAY ** age.get(r.g.patch), 0.15);
     // standardise on pro games
     const k = FEATURES.length;
     this.mu = Array(k).fill(0); this.sd = Array(k).fill(1);
@@ -73,12 +83,12 @@ export class Learner {
     return Math.max(0, Math.min(1, 0.65 * profScore + 0.25 * exp + 0.5 * form + 0.1));
   }
 
-  // Champion win rate, leaving out one game's result when training on it.
+  // Champion strength on the patch: for a pro game, from the games played before it on that
+  // patch and older ones; for your drafts, the latest patch with your league counted extra.
   champWin(c, ex, side) {
-    const s = this.stats[c]; if (!s) return 0.5;
-    let w = s.wins, g = s.picks;
-    if (ex && ex.picks[side].includes(c)) { g--; if (ex.winner === side) w--; }
-    return wr(w, g, this.stats.shrinkK);
+    const gs = ex && this.gameStr.get(ex);
+    if (gs) { const i = ex.picks[side].indexOf(c); if (i >= 0) return gs[side][i]; }
+    return this.now.win(c);
   }
   pair(map, a, b, ex, side, sameTeam) {
     const v = map.get(a + '|' + b); let g = v ? v[0] : 0, w = v ? v[1] : 0;
@@ -146,13 +156,23 @@ export class Learner {
     }
     return w;
   }
-  prob(w, x) { let s = 0; for (let j = 0; j < x.length; j++) s += w[j] * x[j] / this.sd[j]; return sigmoid(s); }
+  // temp shrinks the learned log-odds toward 50% by what the time-split check says (see evaluate)
+  prob(w, x, temp = this.temp ?? 1) { let s = 0; for (let j = 0; j < x.length; j++) s += w[j] * x[j] / this.sd[j]; return sigmoid(s * temp); }
 
   // Honest check: train on the older 80% of pro games and test on the newest 20%.
   evaluate() {
     const cut = Math.floor(this.pro.length * 0.8);
     const train = this.pro.slice(0, cut), test = this.pro.slice(cut);
     const w = this.fit(train, 250);
+    // calibration: fitted on the past, the model is more sure of itself than the newest games
+    // bear out. Find the factor on its log-odds that fits the newest games best, and use it.
+    let best = { t: 1, ll: Infinity };
+    for (let t = 0.3; t <= 1.21; t += 0.02) {
+      let ll = 0, W = 0;
+      for (const r of test) { const q = Math.min(0.99, Math.max(0.01, this.prob(w, r.x, t))); ll -= r.wt * (r.y ? Math.log(q) : Math.log(1 - q)); W += r.wt; }
+      if (ll / W < best.ll) best = { t, ll: ll / W };
+    }
+    this.temp = +best.t.toFixed(2);
     const score = (p) => {
       let hit = 0, ll = 0;
       test.forEach((r, i) => { const q = Math.min(0.99, Math.max(0.01, p(r, i))); hit += (q > 0.5) === (r.y === 1) ? 1 : 0; ll -= r.y ? Math.log(q) : Math.log(1 - q); });
@@ -160,7 +180,17 @@ export class Learner {
     };
     const iFit = 0, iMeta = 1, iSyn = 2, iCtr = 3;
     const hand = (r) => sigmoid(2.2 * (0.5 * r.x[iFit] + 1.2 * r.x[iMeta] + 2 * r.x[iSyn] + 2 * r.x[iCtr]));
-    this.eval = { n: test.length, learned: score((r) => this.prob(w, r.x)), hand: score(hand), coin: { acc: 0.5, logloss: Math.log(2) } };
+    // calibration table: how often each band of predictions came true
+    const bands = [[0.5, 0.6], [0.6, 0.7], [0.7, 0.8], [0.8, 1.01]].map(([lo, hi]) => ({ lo, hi, n: 0, said: 0, won: 0 }));
+    const raw = bands.map((b) => ({ ...b }));
+    for (const r of test) {
+      for (const [list, t] of [[bands, this.temp], [raw, 1]]) {
+        const p = this.prob(w, r.x, t), q = Math.max(p, 1 - p), y = p >= 0.5 ? r.y : 1 - r.y;
+        const b = list.find((x) => q >= x.lo && q < x.hi); if (b) { b.n++; b.said += q; b.won += y; }
+      }
+    }
+    this.eval = { n: test.length, learned: score((r) => this.prob(w, r.x)), uncal: score((r) => this.prob(w, r.x, 1)), hand: score(hand), coin: { acc: 0.5, logloss: Math.log(2) }, bands, raw, temp: this.temp,
+      latest: (() => { const lt = test.filter((r) => r.g.patch === this.m.patches[this.m.patches.length - 1]); if (!lt.length) return null; let hit = 0, ll = 0; for (const r of lt) { const q = Math.min(0.99, Math.max(0.01, this.prob(w, r.x))); hit += (q > 0.5) === (r.y === 1) ? 1 : 0; ll -= r.y ? Math.log(q) : Math.log(1 - q); } return { n: lt.length, acc: hit / lt.length, logloss: ll / lt.length, patch: this.m.patches[this.m.patches.length - 1] }; })() };
   }
 
   retrain() {
@@ -228,6 +258,41 @@ export function syncWithSave(m) {
   }
   if (changed) results.save(list);
   return matched;
+}
+
+// Strength of every pick in every pro game, from the games before it: its own patch shrunk
+// toward older patches (moved by the patch notes), with its league counted extra. Same
+// formula as PatchMeta, run forward through the games so no game sees its own result or later ones.
+function prefixStrength(m) {
+  const pi = new Map(m.patches.map((p, i) => [p, i]));
+  const notes = m.patches.map((p) => (m.patchNotes || []).find((n) => n.version === p)?.reasons || {});
+  const T = m.patches.map(() => ({ all: {}, lg: {}, rg: {} }));
+  const region = (l) => (l == null ? null : m.league(l)?.region ?? null);
+  const cnt = (j, c, L, R) => {
+    const a = T[j].all[c]; let w = a ? a[0] : 0, g = a ? a[1] : 0;
+    if (L != null) { const l = T[j].lg[L]?.[c], r = T[j].rg[R]?.[c]; if (l) { w += (LEAGUE_W - 1) * l[0]; g += (LEAGUE_W - 1) * l[1]; } if (r) { w += (REGION_W - 1) * r[0]; g += (REGION_W - 1) * r[1]; } }
+    return [w, g];
+  };
+  const strength = (c, i, L, R) => {
+    let w = 0, g = 0;
+    for (let j = 0; j < i; j++) { const f = PATCH_DECAY ** (i - j - 1); const [a, b] = cnt(j, c, L, R); w += f * a; g += f * b; }
+    let prior = (w + 40) / (g + 80), k = PRIOR_K;
+    const d = noteDirection(notes[i][c]);
+    if (d != null) { prior = Math.min(0.75, Math.max(0.25, prior + TAG_SHIFT * d)); k *= 0.5; }
+    const [a, b] = cnt(i, c, L, R);
+    return (a + k * prior) / (b + k);
+  };
+  const add = (o, c, win) => { const v = (o[c] ||= [0, 0]); v[1]++; if (win) v[0]++; };
+  const out = new Map();
+  for (const g of m.games) {
+    const i = pi.get(g.patch), L = g.league, R = region(L);
+    out.set(g, [0, 1].map((s) => g.picks[s].map((c) => strength(c, i, L, R))));
+    for (const s of [0, 1]) for (const c of g.picks[s]) {
+      const win = g.winner === s; add(T[i].all, c, win);
+      if (L != null) { add((T[i].lg[L] ||= {}), c, win); add((T[i].rg[R] ||= {}), c, win); }
+    }
+  }
+  return out;
 }
 
 let cached = null;

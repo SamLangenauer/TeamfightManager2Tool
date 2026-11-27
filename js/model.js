@@ -1,5 +1,5 @@
 // Turns the decoded save into indexes and analytics used by every view.
-import { STAT_KEYS, HIDDEN_KEYS } from './decoder.js';
+import { STAT_KEYS, HIDDEN_KEYS, cmpVersion } from './decoder.js';
 
 export const ROLES = ['Top', 'Jungle', 'Mid', 'Bottom', 'Support'];
 export const STAT_LABELS = ['Last hit', 'Skill dodge', 'Skill accuracy', 'Positioning', 'Control speed', 'Concentration',
@@ -42,7 +42,8 @@ export class Model {
     this.athletes = db.athletes;
     this.games = db.games.filter((g) => g.teams[0] < this.teams.length && g.teams[1] < this.teams.length);
     this.myTeam = this.teams.find((t) => t.name === db.meta?.teamName)?.id ?? null;
-    this.patches = [...new Set(this.games.map((g) => g.patch))].sort();
+    this.patches = [...new Set(this.games.map((g) => g.patch))].sort(cmpVersion);
+    this.patchNotes = db.patchNotes || [];
     this.#index();
   }
 
@@ -94,22 +95,26 @@ export class Model {
       && (team == null || g.teams.includes(team)));
   }
 
-  // Champion meta table for a set of games.
-  champStats(games) {
+  // Champion meta table for a set of games. weight(g) lets some games count more than
+  // others (recent patches, your league); counts are then weighted sums.
+  champStats(games, weight = null) {
     const s = Object.fromEntries(this.champIds.map((c) => [c, { c, picks: 0, wins: 0, bans: 0, roles: [0, 0, 0, 0, 0], k: 0, d: 0, dmg: 0, gold: 0 }]));
+    let n = 0;
     for (const g of games) {
+      const w = weight ? weight(g) : 1; if (!(w > 0)) continue;
+      n += w;
       for (const side of [0, 1]) {
         g.picks[side].forEach((c, i) => {
           const x = s[c]; if (!x) return;
-          x.picks++; if (g.winner === side) x.wins++;
-          const p = g.players[side][i]; if (p) x.roles[p.slot]++;
+          x.picks += w; if (g.winner === side) x.wins += w;
+          const p = g.players[side][i]; if (p) x.roles[p.slot] += w;
           const sm = g.sum[side]; const j = p && p.slot < 5 ? p.slot : i; // summary is listed by role
-          x.k += sm.k[j]; x.d += sm.d[j]; x.dmg += sm.dmg[j]; x.gold += sm.gold[j];
+          x.k += w * sm.k[j]; x.d += w * sm.d[j]; x.dmg += w * sm.dmg[j]; x.gold += w * sm.gold[j];
         });
-        for (const c of g.bans[side]) if (s[c]) s[c].bans++;
+        for (const c of g.bans[side]) if (s[c]) s[c].bans += w;
       }
     }
-    const n = games.length || 1;
+    n = n || 1;
     // win rates are shrunk by how much champions really differ in these games, not by a fixed amount
     const k = shrinkK(Object.values(s).map((x) => [x.wins, x.picks]));
     s.shrinkK = k; Object.defineProperty(s, 'shrinkK', { enumerable: false });
@@ -123,10 +128,12 @@ export class Model {
   }
 
   // Pair tables: same-team synergy and cross-team matchups.
-  pairStats(games) {
+  pairStats(games, weight = null) {
     const syn = new Map(), vs = new Map();
-    const add = (m, key, win) => { const v = m.get(key) || [0, 0]; v[0]++; if (win) v[1]++; m.set(key, v); };
+    let wt = 1;
+    const add = (m, key, win) => { const v = m.get(key) || [0, 0]; v[0] += wt; if (win) v[1] += wt; m.set(key, v); };
     for (const g of games) {
+      wt = weight ? weight(g) : 1; if (!(wt > 0)) continue;
       for (const side of [0, 1]) {
         const mine = g.picks[side], theirs = g.picks[1 - side], win = g.winner === side;
         for (let i = 0; i < 5; i++) {

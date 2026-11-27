@@ -47,10 +47,16 @@ export function planStats(m) {
   const champ = {};
   const laneVs = new Map();
   const golds = m.games.map((g) => [...g.sum[0].gold, ...g.sum[1].gold].reduce((a, b) => a + b, 0));
-  const med = golds.slice().sort((a, b) => a - b)[golds.length >> 1] || 0;
+  // "long" is more gold than the median game on the same patch: patches change gold rules
+  // (2027.0.0 raised kill and passive gold), so one median for every patch would call
+  // nearly every game on a high-gold patch long.
+  const byPatch = new Map();
+  m.games.forEach((g, i) => { if (!byPatch.has(g.patch)) byPatch.set(g.patch, []); byPatch.get(g.patch).push(golds[i]); });
+  const meds = new Map([...byPatch].map(([p, v]) => [p, v.sort((a, b) => a - b)[v.length >> 1] || 0]));
+
   const add = (map, k, win) => { const v = map.get(k) || [0, 0]; v[0]++; if (win) v[1]++; map.set(k, v); };
   m.games.forEach((g, gi) => {
-    const long = golds[gi] > med;
+    const long = golds[gi] > meds.get(g.patch);
     for (const side of [0, 1]) {
       const win = g.winner === side;
       const bucket = damageBucket(m.champs, g.picks[1 - side]);
